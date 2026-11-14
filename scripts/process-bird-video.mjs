@@ -57,9 +57,18 @@ const FEATHER_TOP = Number(args["feather-top"] ?? 0);
 //                  static — removes compression shimmer on a resting bird
 //   --stabilize    shift each frame so the source perch line stays at the resting
 //                  height — the bird lands on a rigid line, like the site divider
-const KEY = args.key === "linear" ? "linear" : "dominance";
+//   --key protect  as linear, plus protection for birds with green plumage (peacock):
+//                  green pixels deep inside the silhouette are kept exactly as filmed,
+//                  and recovered edge colours near them may stay green
+const KEY = args.key === "linear" || args.key === "protect" ? args.key : "dominance";
+const FEATHER_BOTTOM = Number(args["feather-bottom"] ?? 0);
+const MAX_SHIFT = Number(args["max-shift"] ?? 25);
 const TEMPORAL = "temporal" in args;
 const STABILIZE = "stabilize" in args;
+// --stabilize release: follow the line only until the bird pushes off (the line's
+// last press before it snaps back), then hold — so the flying bird doesn't bob
+// with the springing line.
+const STAB_RELEASE = args.stabilize === "release";
 const CRF = Number(args.crf ?? 32);
 const HEVC_Q = Number(args["hevc-q"] ?? 55);
 const ALPHA_Q = Number(args["alpha-quality"] ?? 0.85);
@@ -99,6 +108,8 @@ console.log(`decoded ${frames.length} frames ${CW}×${CH}`);
 // ---------------------------------------------------------------- key
 const isDark = (r, g, b) => r < 80 && g < 80 && b < 80;
 
+let lastLine = null; // line centre in the previous frame (tracking)
+
 /** Detect the source perch line: rows containing a long dark horizontal run (anywhere). */
 function lineBand(rgb) {
   const rows = [];
@@ -120,11 +131,23 @@ function lineBand(rgb) {
     if (g && y - g[g.length - 1] <= 3) g.push(y);
     else groups.push([y]);
   }
-  const line = groups.reduce((best, g) => (g.length > best.length || (g.length === best.length && g[0] > best[0]) ? g : best));
-  if (line.length < 3) return null;
+  const candidates = groups.filter((g) => g.length >= 3);
+  if (!candidates.length) return null;
+  // Track the line through time: it only moves a little between frames, so pick
+  // the candidate nearest the previous frame's line (dark plumage bands can form
+  // long runs too). First frame: the densest cluster.
+  const mid = (g) => (g[0] + g[g.length - 1]) / 2;
+  let line;
+  if (lastLine == null) {
+    line = candidates.reduce((best, g) => (g.length > best.length || (g.length === best.length && g[0] > best[0]) ? g : best));
+  } else {
+    line = candidates.reduce((best, g) => (Math.abs(mid(g) - lastLine) < Math.abs(mid(best) - lastLine) ? g : best));
+    if (Math.abs(mid(line) - lastLine) > 40) return null; // nothing plausible this frame
+  }
+  lastLine = mid(line);
   // Margin rows: the line's soft anti-aliased edges are part of it too
   // (wider with the linear key, which keeps faint dark-green edges semi-opaque).
-  const pad = KEY === "linear" ? 8 : 5;
+  const pad = args["line-pad"] ? Number(args["line-pad"]) : KEY === "dominance" ? 5 : 8;
   return { top: line[0] - pad, bottom: line[line.length - 1] + pad, centre: (line[0] + line[line.length - 1]) / 2 };
 }
 
@@ -136,7 +159,7 @@ let prevAlpha = null;
 const shifts = [];
 frames.forEach((rgb, f) => {
   const o = f * CW * CH * 4;
-  if (KEY === "linear") {
+  if (KEY === "linear" || KEY === "protect") {
     // Key colour for this frame: median of clearly-background pixels.
     const rs = [], gs = [], bs = [];
     for (let p = 0; p < CW * CH * 3; p += 3 * 997) {
@@ -147,10 +170,61 @@ frames.forEach((rgb, f) => {
     const G = [med(rs), med(gs), med(bs)];
     const dG = G[1] - Math.max(G[0], G[2]);
     const D0 = 12, D1 = dG - 14; // ≤ D0 opaque · ≥ D1 transparent · linear between
+    // Green-plumage protection maps (integral images → O(1) box queries).
+    let prot = null, zone = null;
+    if (KEY === "protect") {
+      const R = 6, R2 = 5, n = CW * CH;
+      const notFg = new Uint8Array(n), green = new Uint8Array(n);
+      for (let k = 0, p = 0; k < n; k++, p += 3) {
+        const r = rgb[p], g = rgb[p + 1], b = rgb[p + 2];
+        notFg[k] = Math.hypot(r - G[0], g - G[1], b - G[2]) <= 20 ? 1 : 0;
+        // Real plumage green: clearly green-dominant and not near-black (a black
+        // source line is "green-dominant" by a hair and must not be protected).
+        // Also well away from the key colour: fine gaps (crest fan, between wing
+        // feathers) are mostly-backdrop mixtures that sit close to the key.
+        green[k] =
+          g - Math.max(r, b) > 20 &&
+          0.299 * r + 0.587 * g + 0.114 * b > 40 &&
+          Math.hypot(r - G[0], g - G[1], b - G[2]) > 55
+            ? 1
+            : 0;
+      }
+      const integral = (src) => {
+        const I = new Int32Array((CW + 1) * (CH + 1));
+        for (let y = 0; y < CH; y++) {
+          let row = 0;
+          for (let x = 0; x < CW; x++) {
+            row += src[y * CW + x];
+            I[(y + 1) * (CW + 1) + x + 1] = I[y * (CW + 1) + x + 1] + row;
+          }
+        }
+        return I;
+      };
+      const box = (I, x, y, r) => {
+        const x0 = Math.max(0, x - r), y0 = Math.max(0, y - r), x1 = Math.min(CW, x + r + 1), y1 = Math.min(CH, y + r + 1);
+        return I[y1 * (CW + 1) + x1] - I[y0 * (CW + 1) + x1] - I[y1 * (CW + 1) + x0] + I[y0 * (CW + 1) + x0];
+      };
+      const Inot = integral(notFg);
+      prot = new Uint8Array(n);
+      for (let y = 0; y < CH; y++)
+        for (let x = 0; x < CW; x++) {
+          const k = y * CW + x;
+          if (green[k] && !notFg[k] && box(Inot, x, y, R) === 0) prot[k] = 1; // deep inside → feather
+        }
+      const Ip = integral(prot);
+      zone = new Uint8Array(n);
+      for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) if (box(Ip, x, y, R2) > 0) zone[y * CW + x] = 1;
+    }
     for (let p = 0, q = o, k = 0; p < CW * CH * 3; p += 3, q += 4, k++) {
       const r = rgb[p], g = rgb[p + 1], b = rgb[p + 2];
       const d = g - Math.max(r, b);
       let a = d <= D0 ? 1 : d >= D1 ? 0 : (D1 - d) / (D1 - D0);
+      const inZone = zone && zone[k];
+      if (prot && prot[k]) {
+        // Natural green plumage, deep inside the bird: keep exactly as filmed.
+        out[q] = r; out[q + 1] = g; out[q + 2] = b; out[q + 3] = 255;
+        continue;
+      }
       if (TEMPORAL && prevRgb && prevAlpha) {
         const still = Math.abs(r - prevRgb[p]) + Math.abs(g - prevRgb[p + 1]) + Math.abs(b - prevRgb[p + 2]) < 18;
         if (still) a = 0.5 * a + 0.5 * (prevAlpha[k] / 255);
@@ -167,8 +241,11 @@ frames.forEach((rgb, f) => {
       // over-subtraction (magenta cast). Neutral greys, yellow eyes and pink feet
       // all satisfy this naturally.
       const lo = Math.min(fr, fb), hi = Math.max(fr, fb);
-      if (fg > hi + (a < 0.95 ? 1 : 6)) fg = hi + (a < 0.95 ? 1 : 6);
-      if (fg < lo) fg = lo;
+      if (!inZone) {
+        // Non-green subjects / non-green parts: no green cast, no magenta cast.
+        if (fg > hi + (a < 0.95 ? 1 : 6)) fg = hi + (a < 0.95 ? 1 : 6);
+        if (fg < lo) fg = lo;
+      }
       out[q] = fr; out[q + 1] = fg; out[q + 2] = fb; out[q + 3] = Math.round(a * 255);
     }
     if (TEMPORAL) {
@@ -201,7 +278,7 @@ frames.forEach((rgb, f) => {
         // Keep only clearly bird pixels (bright and solid, e.g. claws); anything
         // dark or semi-transparent in the band is line or line edge.
         const lum = 0.299 * rgb[p] + 0.587 * rgb[p + 1] + 0.114 * rgb[p + 2];
-        if (lum >= 90 && out[q + 3] >= (KEY === "linear" ? 230 : 200)) continue;
+        if (lum >= 90 && out[q + 3] >= (KEY === "dominance" ? 200 : 230)) continue;
         const t = (y - yA) / (yB - yA);
         for (let c = 0; c < 4; c++) out[q + c] = Math.round(out[ia + c] * (1 - t) + out[ib + c] * t);
       }
@@ -223,6 +300,15 @@ frames.forEach((rgb, f) => {
       }
     }
   }
+  if (FEATHER_BOTTOM > 0) {
+    for (let y = Math.max(0, CH - FEATHER_BOTTOM); y < CH; y++) {
+      const k = (CH - 1 - y) / FEATHER_BOTTOM;
+      for (let x = 0; x < CW; x++) {
+        const q = o + (y * CW + x) * 4 + 3;
+        out[q] = Math.round(out[q] * k * k * (3 - 2 * k));
+      }
+    }
+  }
   meta.push({ f, line: band?.centre ?? null });
 });
 
@@ -233,10 +319,20 @@ if (STABILIZE) {
   if (process.env.DEBUG_LINES) console.log("raw line centres", meta.map((m) => m.line).join(" "));
   if (target != null) {
     const row = CW * 4;
+    let release = Infinity;
+    if (STAB_RELEASE) {
+      for (let f = 1; f + 3 < meta.length; f++) {
+        const a = meta[f].line, b = meta[f + 3].line;
+        if (a != null && b != null && a - b > 8) { release = f; break; }
+      }
+      if (release !== Infinity) console.log(`stabilise: following the line until frame ${release} (push-off), then holding`);
+    }
+    const heldLine = release !== Infinity ? meta[release].line : null;
     meta.forEach((m, f) => {
+      if (f > release) m.line = heldLine;
       if (m.line == null) return;
       const dy = Math.round(target - m.line);
-      if (!dy || Math.abs(dy) > 25) return; // real bounce is small; anything larger is not the line
+      if (!dy || Math.abs(dy) > MAX_SHIFT) return; // real bounce is small; anything larger is not the line
       const o = f * CW * CH * 4;
       const copy = Buffer.from(out.subarray(o, o + CW * CH * 4));
       for (let y = 0; y < CH; y++) {

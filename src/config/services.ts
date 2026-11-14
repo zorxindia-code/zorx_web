@@ -11,6 +11,7 @@
  */
 import websiteMeta from "../../public/videos/bird/website.json";
 import productionMeta from "../../public/videos/bird/production.json";
+import brandingMeta from "../../public/videos/bird/branding-bird.json";
 
 export interface BirdPlacement {
   /** Video frame size (px). */
@@ -56,7 +57,22 @@ export interface Service {
 }
 
 export const SERVICES: readonly Service[] = [
-  { id: "branding", label: "Branding", bird: null }, // future clip
+  {
+    id: "branding",
+    label: "Branding",
+    // Peacock, source public/videos/bird-videos/peacock.mp4: enter 0–2.542 s (fly in,
+    // land, settle facing forward), exit 4.75–7.0 s (take off, fly left) — two
+    // pose-matched frames, so the idle head-turning in between is skipped. Crop
+    // 1500:1080:0:0, "protect" key (keeps the natural green tail), line-stabilised.
+    bird: {
+      id: "branding",
+      side: "left", // peacock: enters from the left, leaves to the left
+      size: 1.3,
+      enter: { webm: "/videos/bird/branding-bird.webm", hevc: "/videos/bird/branding-bird-hevc.mp4" },
+      exit: { webm: "/videos/bird/branding-bird-exit.webm", hevc: "/videos/bird/branding-bird-exit-hevc.mp4" },
+      meta: brandingMeta,
+    },
+  },
   {
     id: "website",
     label: "Website",
