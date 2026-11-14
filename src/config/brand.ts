@@ -130,9 +130,11 @@ export const TUNING = {
     //            the white background contracts to the O square and turns Ice Blue
     settle: 70, // video scrubs to its final (logo) pose
     handoff: 20, // o.png fades in over the aligned video bird
-    zx: 110, // Z from the left AND X from the right — same start, duration, ease, distance
-    tagline: 60, // INTERACTIVE AGENCY settles (overlaps the end of Z / X)
-    taglineOverlap: 40,
+    zx: 110, // Z from the left AND X from the right — one tween (same start, duration,
+    //          ease, mirrored distance). Timed to ARRIVE exactly as the O finishes
+    //          settling, so it starts while the bird is still growing into the O.
+    tagline: 60, // INTERACTIVE AGENCY settles under the completed logo
+    taglineOverlap: 10,
     hold: 40, // completed logo rests
     showreel: 170, // logo → Z | showreel | X composition (landing_showreel.jpeg)
     lazyReelAt: 0.55, // start buffering the showreel at this overall progress

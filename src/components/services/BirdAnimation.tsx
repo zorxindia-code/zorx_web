@@ -1,23 +1,31 @@
-import type { Ref } from "react";
+import type { BirdClip } from "@/config/services";
 
 /**
- * The service bird: one ENTER video (fly in → land → rest) and one EXIT video
- * (take off → fly out), stacked at the same transform. Only one is visible at a
- * time, except for a ~0.12 s overlap at take-off where both show the same
- * perched pose. No sources until a service with a bird is activated —
- * ServicesSection drives both imperatively. Nothing loops; at rest nothing decodes.
+ * The service birds: for each bird, one ENTER video (fly in → land → rest) and
+ * one EXIT video (take off → fly out), stacked at the same transform. Each bird
+ * keeps its own pair, so its clips are fetched once and stay buffered — no
+ * source swapping between birds (Safari would re-download on every swap).
+ * No sources until that bird is first needed; ServicesSection drives them.
+ * Only one bird is ever visible; nothing loops; at rest nothing decodes.
  */
-export function BirdAnimation({
-  enterRef,
-  exitRef,
-}: {
-  enterRef: Ref<HTMLVideoElement>;
-  exitRef: Ref<HTMLVideoElement>;
-}) {
+export function BirdAnimation({ birds }: { birds: BirdClip[] }) {
   return (
     <>
-      <video ref={enterRef} className="zorx-service-bird" muted playsInline preload="none" disablePictureInPicture aria-hidden="true" />
-      <video ref={exitRef} className="zorx-service-bird" muted playsInline preload="none" disablePictureInPicture aria-hidden="true" />
+      {birds.flatMap((b) =>
+        (["enter", "exit"] as const).map((role) => (
+          <video
+            key={`${b.id}-${role}`}
+            data-bird={b.id}
+            data-role={role}
+            className="zorx-service-bird"
+            muted
+            playsInline
+            preload="none"
+            disablePictureInPicture
+            aria-hidden="true"
+          />
+        )),
+      )}
     </>
   );
 }

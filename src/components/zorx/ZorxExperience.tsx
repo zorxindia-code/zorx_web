@@ -57,7 +57,7 @@ export default function ZorxExperience() {
 
       const measure = () => computeLayout(stageEl.clientWidth, stageEl.clientHeight);
       let L: StageLayout = measure();
-      const base = { art: 1, square: 1, video: 1 };
+      const base = { art: 1, square: 1, video: 1, field: 1 };
 
       // Showreel buffering indicator — attribute toggles only, no re-renders.
       const setReelLoading = (on: boolean) => (reelEl.dataset.loading = on ? "true" : "false");
@@ -94,6 +94,8 @@ export default function ZorxExperience() {
         base.art = Math.max(L.logo.art.w, L.comp.art.w);
         base.square = Math.max(L.logo.z.w, L.comp.z.w);
         base.video = L.logo.video.w;
+        base.field = L.pre.frame.w; // square: the covering square around the O
+        gsap.set(rig.frame, { width: base.field, height: base.field });
         gsap.set(rig.art, { width: base.art, height: base.art });
         gsap.set([rig.z, rig.x], { width: base.square, height: base.square });
         // CSS showed the same small icon before hydration, so this is invisible.
@@ -178,7 +180,6 @@ export default function ZorxExperience() {
             <span className="zorx-mouse">
               <span className="zorx-mouse-wheel" />
             </span>
-            <span className="zorx-hint-text">Scroll to explore</span>
           </div>
         </div>
       </section>

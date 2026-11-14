@@ -93,11 +93,16 @@ export function computeLayout(W: number, H: number): StageLayout {
   const xFinal = lx + 2 * (s + gap);
   const travel = zFinal + s + 48; // = (W + 48) − xFinal, by symmetry
 
+  // Covering square centred on the O centre: reaches every stage corner.
+  const ocx = logoO.x + s / 2;
+  const ocy = logoO.y + s / 2;
+  const cover = 2 * Math.max(ocx, W - ocx, ocy, H - ocy);
+
   return {
     W,
     H,
     pre: {
-      frame: { x: 0, y: 0, w: W, h: H },
+      frame: sq(ocx - cover / 2, ocy - cover / 2, cover),
       video: preVideo,
       z: sq(zFinal - travel + (s - es) / 2, ey, es),
       x: sq(xFinal + travel + (s - es) / 2, ey, es),

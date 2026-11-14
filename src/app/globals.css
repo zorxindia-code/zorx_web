@@ -20,6 +20,30 @@ body {
   color: var(--zorx-ice);
 }
 
+/*
+ * Site cursor — the ZORX feather (public/cursor.png, 82×80, untouched).
+ * Served from 32 px / 64 px copies (cursor-32.png / cursor-64.png): browsers
+ * ignore or swap out cursors above 32 px in places, and the 64 px copy keeps it
+ * sharp on retina. The copies carry a hairline Ice Blue outline so the black
+ * feather stays visible over the black sections. Hotspot = quill tip (1, 3).
+ * Declarations cascade: plain url → -webkit-image-set → image-set (last
+ * supported one wins); "auto" is the final fallback.
+ */
+html {
+  cursor: url("/cursor-32.png") 1 3, auto;
+  cursor: -webkit-image-set(url("/cursor-32.png") 1x, url("/cursor-64.png") 2x) 1 3, auto;
+  cursor: image-set(url("/cursor-32.png") 1x, url("/cursor-64.png") 2x) 1 3, auto;
+}
+/* Interactive elements use the same feather instead of the hand. */
+a,
+button,
+[role="button"],
+label,
+summary,
+select {
+  cursor: inherit;
+}
+
 body {
   font-family: ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -53,9 +77,10 @@ html.zorx-locked body {
 }
 
 /*
- * Intro field. On first paint it IS the Ice Blue (#E9F5FF) loader background; scroll
- * contracts it (x / y / scaleX / scaleY) into the O square while it shifts to
- * the artwork's Ice Blue, then grows it into the showreel frame.
+ * Intro field. On first paint it IS the Ice Blue (#E9F5FF) loader background
+ * (stage-sized). Once JS runs it becomes a square centred on the O that covers
+ * the stage, shrinks by uniform scale to the O square, then grows into the
+ * showreel frame.
  */
 .zorx-field {
   width: 100%;
@@ -91,19 +116,11 @@ html.zorx-locked body {
   overflow: hidden;
   background: var(--zorx-black);
 }
-/* The video sits 2px inside the viewport so the frame stroke never covers it. */
+/* The video fills the reel frame exactly — no border, outline or inset. */
 .zorx-reel-viewport {
   position: absolute;
-  inset: 2px;
-  overflow: hidden;
-}
-/* 2px Ice Blue stroke on the showreel viewport itself; sharp corners. */
-.zorx-reel-frame {
-  position: absolute;
   inset: 0;
-  border: 2px solid var(--zorx-ice);
-  opacity: 0;
-  pointer-events: none;
+  overflow: hidden;
 }
 
 /* The reel's buffering state uses the normal loading indicator. */
@@ -245,15 +262,6 @@ html.zorx-locked body {
   background: currentColor;
   animation: zorx-wheel 1.8s ease-in-out infinite;
 }
-.zorx-hint-text {
-  font-family: var(--font-tagline), ui-sans-serif, sans-serif;
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.35em;
-  padding-left: 0.35em; /* optically centre the tracked text */
-  text-transform: uppercase;
-  white-space: nowrap;
-}
 @keyframes zorx-wheel {
   0% { transform: translateY(0); opacity: 0; }
   25% { opacity: 1; }
@@ -294,7 +302,7 @@ html.zorx-locked body {
   padding: clamp(0.85rem, 2.2vw, 2rem) 1rem;
   border: 0;
   background: none;
-  cursor: pointer;
+  cursor: inherit; /* the site feather cursor */
   text-align: center;
   color: inherit;
   -webkit-tap-highlight-color: transparent;

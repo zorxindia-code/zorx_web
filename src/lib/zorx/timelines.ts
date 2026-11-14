@@ -10,7 +10,7 @@ import type { BirdController } from "./media";
  */
 export interface Rig {
   stage: HTMLElement; // pinned
-  frame: HTMLElement; // Ice Blue O field (stage-sized, scaled)
+  frame: HTMLElement; // Ice Blue O field (square base, scaled)
   art: HTMLElement; // o.png
   loader: HTMLVideoElement; // the one bird video
   bird: BirdController;
@@ -22,7 +22,7 @@ export interface Rig {
   reelVideo: HTMLVideoElement;
   L: () => StageLayout;
   /** Untransformed sizes (laid out at the largest state, scaled down). */
-  base: () => { art: number; square: number; video: number };
+  base: () => { art: number; square: number; video: number; field: number };
   /** Called once when the showreel should start buffering. */
   onReelApproach: () => void;
   reduce: boolean;
@@ -30,12 +30,17 @@ export interface Rig {
 
 type Get = (L: StageLayout) => Rect;
 
-/** Ice Blue field: solid colour, so non-uniform scale is lossless. */
+/**
+ * Ice Blue field. Its untransformed box is a square (side = base().field), so
+ * between two square states scaleX === scaleY at every point — a true 1:1
+ * square. Only the logo → showreel frame step is non-uniform (16:9 reel frame).
+ * Solid colour, so scaling is lossless.
+ */
 const field = (rig: Rig, get: Get) => ({
   x: () => get(rig.L()).x,
   y: () => get(rig.L()).y,
-  scaleX: () => get(rig.L()).w / rig.L().W,
-  scaleY: () => get(rig.L()).h / rig.L().H,
+  scaleX: () => get(rig.L()).w / rig.base().field,
+  scaleY: () => get(rig.L()).h / rig.base().field,
 });
 
 /** Square artwork / video: uniform scale, proportions locked. */
@@ -66,7 +71,6 @@ const vidBase = (rig: Rig) => () => rig.base().video;
 /** Initial state: full-screen white field, centred bird video. Nothing else is painted. */
 export function setInitialState(rig: Rig) {
   gsap.set(rig.frame, { ...now(field(rig, (L) => L.pre.frame)), backgroundColor: TUNING.introBg });
-  gsap.set(rig.reel.querySelector(".zorx-reel-frame"), { autoAlpha: 0 });
   gsap.set(rig.loader, now(square(rig, (L) => L.pre.video, vidBase(rig))));
   gsap.set(rig.art, now(square(rig, (L) => L.logo.art, artBase(rig))));
   gsap.set(rig.z, now(square(rig, (L) => L.pre.z, sqBase(rig))));
@@ -82,7 +86,8 @@ export function setInitialState(rig: Rig) {
  *             and shifts to the artwork's Ice Blue
  *   settle    video is scrubbed to its last frame (= o.png's bird pose)
  *   handoff   o.png fades in over the pixel-aligned video bird
- *   zx        Z from the left and X from the right — one tween, identical motion
+ *   zx        Z from the left and X from the right — one tween, identical motion,
+ *             starting while the O is still settling and arriving as it completes
  *   tagline   INTERACTIVE AGENCY settles (one text element)
  *   hold      the complete logo rests
  *   showreel  Z / X shrink outward, O grows into the reel frame, reel fades up
@@ -92,8 +97,10 @@ export function buildScrollExperience(rig: Rig) {
   const growEnd = S.grow;
   const settleEnd = growEnd + S.settle;
   const handoffEnd = settleEnd + S.handoff;
-  const zxStart = handoffEnd;
-  const zxEnd = zxStart + S.zx;
+  // Z and X arrive exactly as the O finishes settling (o.png fully in), so they
+  // start while the bird is still growing into the O.
+  const zxEnd = handoffEnd;
+  const zxStart = Math.max(0, zxEnd - S.zx);
   const tagStart = zxEnd - S.taglineOverlap;
   const holdStart = Math.max(zxEnd, tagStart + S.tagline);
   const reelStart = holdStart + S.hold;
@@ -153,10 +160,10 @@ export function buildScrollExperience(rig: Rig) {
     0,
   );
 
-  // The background adapts with the bird: the white field contracts to the O
-  // square in LOCKSTEP with the video (same duration + ease from the same
-  // start), so the video's white frame always lies inside white — no blend
-  // modes or filters needed. The Ice Blue arrives with o.png in the hand-off.
+  // The background adapts with the bird: a square centred on the O, covering
+  // the screen, shrinks by uniform scale to the O's artwork square — 1:1 the
+  // whole way. It moves in LOCKSTEP with the video (same duration + ease from
+  // the same start), so the video always lies inside it — no blend modes.
   tl.fromTo(
     rig.frame,
     field(rig, (L) => L.pre.frame),
@@ -219,13 +226,6 @@ export function buildScrollExperience(rig: Rig) {
   );
   tl.fromTo(rig.reel, { autoAlpha: 0 }, { autoAlpha: 1, duration: R * 0.4, ease: "power1.inOut", immediateRender: false }, reelFadeAt);
   tl.fromTo(v, { scale: 1.12 }, { scale: 1, duration: R * 0.6, ease: "power2.out", immediateRender: false }, reelStart + R * 0.3);
-  // 2px stroke appears once the frame has reached its final size.
-  tl.fromTo(
-    rig.reel.querySelector(".zorx-reel-frame"),
-    { autoAlpha: 0 },
-    { autoAlpha: 1, duration: R * 0.15, ease: "power1.out", immediateRender: false },
-    reelStart + D,
-  );
 
   return tl;
 }

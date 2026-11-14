@@ -33,7 +33,6 @@ export function ShowreelSection({
           <source src={ASSETS.showreel.large} type="video/mp4" />
         </video>
       </div>
-      <div className="zorx-reel-frame" />
       <div className="zorx-reel-loading">
         <LoadingIndicator size={36} label="Loading showreel" />
       </div>

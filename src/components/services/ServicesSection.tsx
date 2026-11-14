@@ -31,13 +31,9 @@ type Phase = "idle" | "entering" | "perched" | "exiting";
  */
 export default function ServicesSection() {
   const section = useRef<HTMLElement>(null);
-  const enterRef = useRef<HTMLVideoElement>(null);
-  const exitRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const root = section.current!;
-    const enterV = enterRef.current!;
-    const exitV = exitRef.current!;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const hevc = prefersHevcAlpha();
     const rows = new Map<string, HTMLElement>();
@@ -53,18 +49,31 @@ export default function ServicesSection() {
     let phase: Phase = "idle";
     let current: string | null = null; // bird that is out
     let timer = 0;
-    gsap.set([enterV, exitV], { autoAlpha: 0 });
+
+    // One enter/exit video pair per bird (see BirdAnimation).
+    const pairs = new Map<string, { enter: HTMLVideoElement; exit: HTMLVideoElement }>();
+    root.querySelectorAll<HTMLVideoElement>("video[data-bird]").forEach((v) => {
+      const id = v.dataset.bird!;
+      const pair = pairs.get(id) ?? ({} as { enter: HTMLVideoElement; exit: HTMLVideoElement });
+      pair[v.dataset.role as "enter" | "exit"] = v;
+      pairs.set(id, pair);
+    });
+    const allVideos = [...pairs.values()].flatMap((p) => [p.enter, p.exit]);
+    const P = (id: string) => pairs.get(id)!;
+    gsap.set(allVideos, { autoAlpha: 0 });
 
     // ---------------------------------------------------------- bird helpers
+    /** First use of a bird: give its pair sources (fetched once, kept buffered). */
     const load = (clip: BirdClip) => {
-      if (enterV.dataset.clip === clip.id) return;
-      enterV.dataset.clip = clip.id;
-      enterV.src = src(clip.enter);
-      enterV.preload = "auto";
+      const { enter, exit } = P(clip.id);
+      if (enter.dataset.loaded) return;
+      enter.dataset.loaded = "1";
+      enter.src = src(clip.enter);
+      enter.preload = "auto";
       if (clip.exit) {
-        exitV.src = src(clip.exit);
-        exitV.preload = "auto";
-      } else exitV.removeAttribute("src");
+        exit.src = src(clip.exit);
+        exit.preload = "auto";
+      }
     };
 
     const place = (id: string) => {
@@ -74,16 +83,28 @@ export default function ServicesSection() {
       const next = rows.get(order[order.indexOf(id) + 1] ?? "");
       const sec = root.getBoundingClientRect();
       const r = row.getBoundingClientRect();
-      const textRight = (el?: HTMLElement) =>
-        el ? el.querySelector(".zorx-service-label")!.getBoundingClientRect().right - sec.left : 0;
-      const p = placeBird(clip.meta, {
-        width: sec.width,
-        dividerY: r.bottom - sec.top + 0.5, // centre of the 1px divider below the row (next row's top border)
-        rowHeight: r.height,
-        textRight: textRight(row),
-        nextTextRight: textRight(next),
-      });
-      gsap.set([enterV, exitV], { x: p.x, y: p.y, scale: p.scale, width: clip.meta.width, height: clip.meta.height });
+      const text = (el?: HTMLElement) => {
+        const b = el?.querySelector(".zorx-service-label")?.getBoundingClientRect();
+        return b ? { l: b.left - sec.left, r: b.right - sec.left } : { l: sec.width, r: 0 };
+      };
+      const t = text(row);
+      const n = text(next);
+      const p = placeBird(
+        clip.meta,
+        {
+          width: sec.width,
+          dividerY: r.bottom - sec.top + 0.5, // centre of the 1px divider below the row (next row's top border)
+          rowHeight: r.height,
+          textLeft: t.l,
+          textRight: t.r,
+          nextTextLeft: n.l,
+          nextTextRight: n.r,
+        },
+        clip.side,
+        clip.size,
+      );
+      const { enter, exit } = P(id);
+      gsap.set([enter, exit], { x: p.x, y: p.y, scale: p.scale, width: clip.meta.width, height: clip.meta.height });
     };
 
     /** Visible-but-transparent: Firefox only decodes videos it considers visible. */
@@ -106,6 +127,7 @@ export default function ServicesSection() {
 
     function startEnter(id: string) {
       const clip = clipOf(id)!;
+      const { enter: enterV, exit: exitV } = P(id);
       load(clip);
       place(id);
       current = id;
@@ -133,6 +155,7 @@ export default function ServicesSection() {
 
     function startExit() {
       const clip = clipOf(current);
+      const { enter: enterV, exit: exitV } = P(current!);
       phase = "exiting";
       gsap.killTweensOf([enterV, exitV]);
       if (!clip?.exit || reduce) {
@@ -143,11 +166,21 @@ export default function ServicesSection() {
       exitV.currentTime = 0;
       gsap.to(exitV, { opacity: 1, duration: T.handoff, ease: "none" });
       gsap.to(enterV, { autoAlpha: 0, duration: T.handoff, ease: "none", delay: T.handoff * 0.5 });
+      // Last moments of the flight: fade, so nothing can linger at a clip edge.
+      if (Number.isFinite(exitV.duration)) {
+        gsap.to(exitV, {
+          opacity: 0,
+          duration: T.exitTailFade,
+          ease: "none",
+          delay: Math.max(T.handoff, exitV.duration - T.exitTailFade),
+        });
+      }
       exitV.play().catch(() => onExited());
     }
 
     function onExited() {
       if (phase !== "exiting") return;
+      const { enter: enterV, exit: exitV } = P(current!);
       gsap.killTweensOf([enterV, exitV]);
       gsap.set([enterV, exitV], { autoAlpha: 0 });
       enterV.pause();
@@ -161,10 +194,14 @@ export default function ServicesSection() {
       reconcile();
     }
 
-    const onEnterEnded = () => onEntered();
-    const onExitEnded = () => onExited();
-    enterV.addEventListener("ended", onEnterEnded);
-    exitV.addEventListener("ended", onExitEnded);
+    // A clip's end only counts if it belongs to the bird that is out.
+    const onEnded = (e: Event) => {
+      const v = e.currentTarget as HTMLVideoElement;
+      if (v.dataset.bird !== current) return;
+      if (v.dataset.role === "enter") onEntered();
+      else onExited();
+    };
+    allVideos.forEach((v) => v.addEventListener("ended", onEnded));
 
     // ---------------------------------------------------------- input → want
     const activate = (id: string, delay: number) => {
@@ -180,10 +217,10 @@ export default function ServicesSection() {
       reconcile();
       const clip = clipOf(id);
       if (!clip) return;
-      if (phase === "idle") {
+      if (current !== id) {
         load(clip); // buffer during the intent delay
         place(id);
-        stage(enterV);
+        stage(P(id).enter);
       }
       timer = window.setTimeout(() => {
         if (active !== id) return;
@@ -202,7 +239,8 @@ export default function ServicesSection() {
       if (current === id && phase !== "idle") lingering = id;
       else setRow(id, false);
       reconcile();
-      if (phase === "idle") gsap.set(enterV, { autoAlpha: 0 });
+      const pair = pairs.get(id);
+      if (pair && current !== id) gsap.set(pair.enter, { autoAlpha: 0 }); // un-stage
     };
 
     let lastPointer = "mouse";
@@ -245,11 +283,11 @@ export default function ServicesSection() {
 
     return () => {
       window.clearTimeout(timer);
-      gsap.killTweensOf([enterV, exitV]);
-      enterV.pause();
-      exitV.pause();
-      enterV.removeEventListener("ended", onEnterEnded);
-      exitV.removeEventListener("ended", onExitEnded);
+      gsap.killTweensOf(allVideos);
+      allVideos.forEach((v) => {
+        v.pause();
+        v.removeEventListener("ended", onEnded);
+      });
       root.removeEventListener("pointerdown", onPointerDown);
       root.removeEventListener("pointerleave", onLeaveSection);
       root.removeEventListener("focusin", onFocus);
@@ -277,7 +315,7 @@ export default function ServicesSection() {
           <ServiceRow key={s.id} service={s} />
         ))}
       </ul>
-      <BirdAnimation enterRef={enterRef} exitRef={exitRef} />
+      <BirdAnimation birds={SERVICES.flatMap((s) => (s.bird ? [s.bird] : []))} />
     </section>
   );
 }

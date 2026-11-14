@@ -10,6 +10,7 @@
  * changes needed.
  */
 import websiteMeta from "../../public/videos/bird/website.json";
+import productionMeta from "../../public/videos/bird/production.json";
 
 export interface BirdPlacement {
   /** Video frame size (px). */
@@ -24,6 +25,8 @@ export interface BirdPlacement {
   feetX: number;
   /** Highest point the bird reaches during the clip. */
   flightTop: number;
+  /** Below-line part of the resting bird (tail / feet), if measured. */
+  tail?: { x0: number; x1: number } | null;
 }
 
 export interface ClipSources {
@@ -33,6 +36,10 @@ export interface ClipSources {
 
 export interface BirdClip {
   id: string;
+  /** Side of the row the bird rests on — and enters from / leaves towards. */
+  side: "left" | "right";
+  /** Size multiplier on the shared perched-height rule (default 1). */
+  size?: number;
   /** Fly in → land → rest (last frame). */
   enter: ClipSources;
   /** Take off from the resting pose → fly out. Null = fade out instead. */
@@ -57,12 +64,28 @@ export const SERVICES: readonly Service[] = [
     // enter 0.8–3.6 s, exit (take-off) 6.792–9.0 s, crop 1240:1040:680:0.
     bird: {
       id: "website",
+      side: "right", // woodpecker: enters from the right, leaves to the right
       enter: { webm: "/videos/bird/website.webm", hevc: "/videos/bird/website-hevc.mp4" },
       exit: { webm: "/videos/bird/website-exit.webm", hevc: "/videos/bird/website-exit-hevc.mp4" },
       meta: websiteMeta,
     },
   },
-  { id: "production", label: "Production", bird: null }, // future clip
+  {
+    id: "production",
+    label: "Production",
+    // Owl, source public/videos/bird-videos/owl.mp4 (one continuous take, split on
+    // the same perched frame): enter 0–4.417 s, exit 4.417–7.0 s, crop
+    // 1500:1080:0:0, linear key + temporal + line-stabilised, exit top-feathered
+    // (the owl climbs out of the source frame). See README for the exact command.
+    bird: {
+      id: "production",
+      side: "left", // owl: enters from the left, leaves to the left
+      size: 1.3, // owls read larger than the woodpecker; still clamped clear of the text
+      enter: { webm: "/videos/bird/production.webm", hevc: "/videos/bird/production-hevc.mp4" },
+      exit: { webm: "/videos/bird/production-exit.webm", hevc: "/videos/bird/production-exit-hevc.mp4" },
+      meta: productionMeta,
+    },
+  },
   { id: "marketing", label: "Marketing", bird: null }, // future clip
 ];
 
@@ -79,4 +102,6 @@ export const SERVICES_TUNING = {
   fade: 0.3,
   /** Overlap between the resting enter frame and the first exit frame (s). */
   handoff: 0.12,
+  /** Fade over the last moments of an exit clip, so no sliver can linger (s). */
+  exitTailFade: 0.15,
 } as const;
