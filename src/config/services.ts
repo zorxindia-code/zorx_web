@@ -68,7 +68,7 @@ export const SERVICES: readonly Service[] = [
 
 export const SERVICES_TUNING = {
   /** Hover intent before the bird flies in (desktop / keyboard). */
-  hoverDelayMs: 1200,
+  hoverDelayMs: 750,
   /** Tap: short intentional delay before the bird flies in. */
   tapDelayMs: 450,
   /** Resting bird height above the divider, as a fraction of the row height. */
