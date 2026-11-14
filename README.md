@@ -64,3 +64,20 @@ ffmpeg -i showreel.mp4 -an -vf scale=1280:-2 -c:v libx264 -crf 25 -preset medium
 If `Loading.mp4` changes, regenerate `loading-bird-ice.mp4` (command in `src/config/brand.ts`) and re-measure the final-frame bird box (`GEOMETRY.loaderBird`) so it stays aligned with `o.png`.
 # zorx_web
 # zorx_web
+
+## Services section (perching birds)
+
+`src/components/services/` — four full-width rows (Branding, Website, Production, Marketing) set in **Outfit** (variable, via `next/font`; 500 outlined → 700 solid). Hover (mouse/pen) or tap highlights a row immediately; after the intent delay (`SERVICES_TUNING`: 1.2 s hover, 0.45 s tap) that row's bird flies in and perches on the divider below it. When the row is left (or tapped again) the bird **takes off and flies out** — a real exit clip, not a fade — and the title returns to outlined once it has gone. One controller owns the bird (idle → entering → perched → exiting); it only changes state when a flight has finished, so there is never more than one bird. Keyboard focus works like hover. Content and clips live in `src/config/services.ts`; only **Website** has clips for now.
+
+Birds are pre-keyed offline — the browser never chroma-keys:
+
+```bash
+node scripts/process-bird-video.mjs --in public/videos/bird-videos/<source>.mp4 \
+  --name <service> --start <s> --end <s> --crop W:H:X:Y --width 720 [--erase X:Y:W:H]
+```
+
+It keys the green, despills, removes the source's own perch line (the site's divider replaces it), erases an optional watermark box, and writes to `public/videos/bird/`: `<name>.webm` (VP9 alpha — Chrome/Firefox/Edge), `<name>-hevc.mp4` (HEVC alpha — Safari/iOS) and `<name>.json` (perch line, feet, bounds). Point the service's `bird` entry at those files.
+
+Each bird needs two clips processed with the **same crop**: an enter clip (`--rest last`) and an exit clip starting on the same perched pose (`--rest first`).
+
+Current Website clips: source `bird-videos/branding.mp4`, crop `1240:1040:680:0`, watermark `1696:856:86:86` — enter 0.8–3.6 s (`website`), exit 6.792–9.0 s (`website-exit`, starts on the frame closest to the enter clip's resting pose).

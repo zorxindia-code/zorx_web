@@ -265,3 +265,79 @@ html.zorx-locked body {
   .zorx-mouse-wheel { animation: none; opacity: 1; }
   .zorx-hint-inner { transition: opacity 0.3s; transform: none; }
 }
+
+/* ======================================================================
+ * Services — editorial selector with perching bird
+ * ==================================================================== */
+.zorx-services {
+  position: relative;
+  overflow: hidden; /* the bird flies in from beyond the right edge */
+  background: var(--zorx-ice-art);
+  color: var(--zorx-black);
+  padding-block: clamp(4rem, 10vw, 9rem);
+}
+.zorx-services-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* Full-width 1px dividers between (and around) the rows. */
+.zorx-service-row {
+  border-top: 1px solid var(--zorx-black);
+}
+.zorx-service-row:last-child {
+  border-bottom: 1px solid var(--zorx-black);
+}
+.zorx-service-button {
+  display: block;
+  width: 100%;
+  padding: clamp(0.85rem, 2.2vw, 2rem) 1rem;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: center;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.zorx-service-button:focus-visible {
+  outline: 1px solid var(--zorx-black);
+  outline-offset: -6px;
+}
+/* Outfit. Outlined (500) by default; solid bold black (700) when active — the
+   variable font interpolates the weight. The bird is placed after the intent
+   delay, so it measures the settled bold width.
+   The outline is a 2px stroke painted UNDER an Ice Blue fill (paint-order), so
+   only its outer 1px shows — and the font's internal overlapping contours
+   (which a plain text-stroke would trace) are covered. One text layer. */
+.zorx-service-label {
+  display: inline-block;
+  font-family: var(--font-services), ui-sans-serif, sans-serif;
+  font-weight: 500;
+  font-size: clamp(2.6rem, 9vw, 8.75rem);
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--zorx-ice-art);
+  -webkit-text-stroke: 2px var(--zorx-black);
+  paint-order: stroke fill;
+  transition: color 0.25s ease, font-weight 0.25s ease;
+}
+.zorx-service-row[data-active] .zorx-service-label {
+  color: var(--zorx-black);
+  font-weight: 700;
+}
+/* The perching bird: one pre-keyed transparent video, transform-positioned. */
+.zorx-service-bird {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none; /* Tailwind preflight caps media at 100% — the clip must keep its own size */
+  z-index: 2;
+  transform-origin: 0 0;
+  pointer-events: none;
+  visibility: hidden;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zorx-service-label { transition: none; }
+}
