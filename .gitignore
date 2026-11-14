@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ZORX: the 80 MB 4K master showreel is not served by the site (it uses
+# public/videos/optimized/showreel-{1080,720}.mp4). Kept locally, out of Git/deploys.
+/public/videos/showreel.mp4

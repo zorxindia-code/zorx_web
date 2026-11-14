@@ -1,26 +1,267 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --zorx-black: #000000;
+  --zorx-ice: #e8f5ff;
+  /* Exact Ice Blue baked into z.png / o.png / x.png (233,245,255). Used wherever
+     CSS must be indistinguishable from the artwork. */
+  --zorx-ice-art: #e9f5ff;
+  --zorx-white: #ffffff;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ice: var(--zorx-ice);
+  --color-black: var(--zorx-black);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--zorx-black);
+  color: var(--zorx-ice);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+  overflow-x: hidden;
+}
+
+/* Scroll is locked while the preloader and logo reveal play. */
+html.zorx-locked,
+html.zorx-locked body {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* The pinned stage. A size container so the loader can be centred in pure CSS. */
+.zorx-stage {
+  position: relative;
+  width: 100%;
+  height: 100svh;
+  overflow: hidden;
+  background: var(--zorx-black);
+  container-type: size;
+}
+
+/* Stage elements move by transform from (0,0) — no layout during animation. */
+.zorx-abs {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+/*
+ * Intro field. On first paint it IS the Ice Blue (#E9F5FF) loader background; scroll
+ * contracts it (x / y / scaleX / scaleY) into the O square while it shifts to
+ * the artwork's Ice Blue, then grows it into the showreel frame.
+ */
+.zorx-field {
+  width: 100%;
+  height: 100%;
+  background: var(--zorx-ice-art);
+  z-index: 10;
+  will-change: transform;
+}
+
+/* o.png (+ black backing so its cut-out reads black). Hidden until the hand-off. */
+.zorx-art {
+  z-index: 14;
+  visibility: hidden;
+  will-change: transform;
+}
+.zorx-art-back {
+  position: absolute;
+  inset: 4%;
+  background: var(--zorx-black);
+}
+.zorx-art-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+/* Showreel: fixed at the reference frame, exposed by a clip that tracks the O. */
+.zorx-reel {
+  z-index: 16;
+  visibility: hidden;
+  overflow: hidden;
+  background: var(--zorx-black);
+}
+/* The video sits 2px inside the viewport so the frame stroke never covers it. */
+.zorx-reel-viewport {
+  position: absolute;
+  inset: 2px;
+  overflow: hidden;
+}
+/* 2px Ice Blue stroke on the showreel viewport itself; sharp corners. */
+.zorx-reel-frame {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--zorx-ice);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The reel's buffering state uses the normal loading indicator. */
+.zorx-reel-loading {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+}
+.zorx-reel[data-active][data-loading="true"] .zorx-reel-loading {
+  display: grid;
+}
+
+/* Normal website loading indicator — small static white bird (see LoadingIndicator). */
+.zorx-loading-indicator {
+  display: block;
+  height: auto;
+  user-select: none;
+  pointer-events: none;
+}
+
+.zorx-square {
+  z-index: 20;
+  visibility: hidden;
+  will-change: transform;
+}
+.zorx-square img {
+  user-select: none;
+}
+
+/* Tagline: one SVG <text> element, justified to the lockup width. */
+.zorx-tagline {
+  z-index: 20;
+  visibility: hidden;
+}
+.zorx-tagline svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.zorx-tagline text {
+  font-family: var(--font-tagline), "Futura", "Avenir Next", ui-sans-serif, sans-serif;
+  font-weight: 500;
+  fill: var(--zorx-ice);
+  text-rendering: geometricPrecision;
+}
+
+/*
+ * The single intro bird video: the original animation, shown exactly as encoded
+ * — black bird on Ice Blue (#E9F5FF), no blend modes, no filters. Centred
+ * (box mirrors TUNING.loaderIcon) and uncropped (object-fit: contain). It always
+ * sits inside the Ice Blue field (they scale in lockstep), so its frame never shows.
+ */
+.zorx-loader {
+  --v: clamp(60px, 9cqmin, 90px);
+  position: absolute;
+  left: calc(50% - var(--v) / 2);
+  top: calc(50% - var(--v) / 2);
+  width: var(--v);
+  height: var(--v);
+  object-fit: contain;
+  background: var(--zorx-ice-art);
+  /*
+   * Browsers convert video colour slightly differently (Chrome/Safari match
+   * Ice Blue to ±1 level, Firefox a few levels darker). Feathering the outer edge
+   * of the frame leaves no edge for that difference to show. The bird spans
+   * 7.5–91 % × 29–68 % of the frame, so it is never touched by the feather.
+   */
+  --zorx-feather: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent),
+    linear-gradient(180deg, transparent, #000 20%, #000 80%, transparent);
+  -webkit-mask-image: var(--zorx-feather);
+  mask-image: var(--zorx-feather);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  transform-origin: 0 0;
+  z-index: 12;
+  will-change: transform;
+}
+/* Never let the browser draw its own play button over the bird (e.g. when
+   autoplay is refused in Low Power Mode — iOS honours these; current desktop
+   WebKit draws its controls in a closed shadow root, so media.ts also resumes
+   playback on the first gesture). One rule per selector: an unknown
+   pseudo-element would otherwise invalidate the whole list. */
+.zorx-loader::-webkit-media-controls {
+  display: none !important;
+}
+.zorx-loader::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none;
+}
+.zorx-loader::-webkit-media-controls-overlay-play-button {
+  display: none !important;
+}
+
+/*
+ * Scroll indicator. The outer box is faded out by the scroll timeline; the inner
+ * part fades in once loading has finished (.zorx-stage[data-ready]).
+ */
+.zorx-hint {
+  position: absolute;
+  left: 50%;
+  bottom: max(2rem, calc(env(safe-area-inset-bottom) + 1rem));
+  z-index: 25;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.zorx-hint-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: rgb(0 0 0 / 0.45);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+.zorx-stage[data-ready] .zorx-hint-inner {
+  opacity: 1;
+  transform: none;
+}
+.zorx-mouse {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 28px;
+  border: 1.5px solid currentColor;
+  border-radius: 9px;
+}
+.zorx-mouse-wheel {
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  width: 2px;
+  height: 5px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: currentColor;
+  animation: zorx-wheel 1.8s ease-in-out infinite;
+}
+.zorx-hint-text {
+  font-family: var(--font-tagline), ui-sans-serif, sans-serif;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.35em;
+  padding-left: 0.35em; /* optically centre the tracked text */
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+@keyframes zorx-wheel {
+  0% { transform: translateY(0); opacity: 0; }
+  25% { opacity: 1; }
+  70% { transform: translateY(7px); opacity: 0; }
+  100% { transform: translateY(7px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zorx-mouse-wheel { animation: none; opacity: 1; }
+  .zorx-hint-inner { transition: opacity 0.3s; transform: none; }
 }
