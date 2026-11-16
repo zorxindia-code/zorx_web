@@ -93,12 +93,17 @@ export default function ServicesSection() {
         clip.meta,
         {
           width: sec.width,
-          dividerY: r.bottom - sec.top + 0.5, // centre of the 1px divider below the row (next row's top border)
+          // Centre of the 1px divider below the row: the next row's top border, or
+          // for the last row its own bottom border.
+          dividerY: next ? r.bottom - sec.top + 0.5 : r.bottom - sec.top - 0.5,
           rowHeight: r.height,
           textLeft: t.l,
           textRight: t.r,
           nextTextLeft: n.l,
           nextTextRight: n.r,
+          // Last row: the tail hangs into the bottom padding; keep it inside the
+          // section (which clips), with a little air.
+          floorY: next ? undefined : sec.height - 8,
         },
         clip.side,
         clip.size,

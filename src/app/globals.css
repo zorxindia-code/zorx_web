@@ -275,6 +275,118 @@ html.zorx-locked body {
 }
 
 /* ======================================================================
+ * Vision — "Your vision, our expertise" (between showreel and services)
+ * Proportions follow the 1600×900 reference, expressed in vw.
+ * ==================================================================== */
+.zorx-vision {
+  --vision-pad: clamp(1.5rem, 8.5vw, 11rem);
+  position: relative;
+  overflow: hidden; /* the oversized outline may bleed past the edges */
+  background: var(--zorx-black);
+  color: var(--zorx-ice-art);
+  padding: clamp(5rem, 9.4vw, 12rem) var(--vision-pad) clamp(5rem, 10.9vw, 14rem);
+  font-family: var(--font-services), ui-sans-serif, sans-serif;
+}
+/* The ZORX bird as a hairline: background only, never above the text. */
+.zorx-vision-bird {
+  position: absolute;
+  z-index: 0;
+  left: var(--vision-pad);
+  top: clamp(4.5rem, 9.2vw, 11.75rem);
+  width: min(83.1vw, 108rem);
+  height: auto;
+  pointer-events: none;
+}
+.zorx-vision-outline {
+  stroke: #252627;
+  stroke-width: 0.7; /* viewBox units → ≈ 1.8 px on desktop */
+  stroke-linejoin: round;
+}
+/* The light that travels the wings' upper edge during the reveal: a comet of
+   three stacked dashes (faint long tail → brighter short head). Never shown
+   at rest. */
+.zorx-vision-trail {
+  opacity: 0;
+  stroke: #aab4bd;
+  stroke-width: 0.7;
+  stroke-linecap: round;
+}
+.zorx-vision-trail use:nth-child(1) { opacity: 0.16; }
+.zorx-vision-trail use:nth-child(2) { opacity: 0.24; }
+.zorx-vision-trail use:nth-child(3) { opacity: 0.38; }
+.zorx-vision-inner {
+  position: relative;
+  z-index: 1;
+}
+.zorx-vision-title {
+  margin: 0;
+  font-weight: 500;
+  font-size: clamp(2.25rem, 7.8vw, 9.75rem);
+  line-height: 1.04;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+}
+/* Each headline line rises out of its own mask. The mask's extra bottom room
+   (cancelled by the negative margin — layout is unchanged) keeps the comma's
+   descender visible. */
+.zorx-vision-mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+.zorx-vision-line {
+  display: block;
+  white-space: nowrap;
+}
+/* Motion only (set by JS): line 1's feathered edge, swept across it by the
+   light travelling the outline behind it (--sweep, % of the line's width). */
+.zorx-vision[data-motion] .zorx-vision-mask:first-child .zorx-vision-line {
+  --sweep: -20%;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(var(--sweep) - 16%), transparent calc(var(--sweep) + 4%));
+  mask-image: linear-gradient(90deg, #000 calc(var(--sweep) - 16%), transparent calc(var(--sweep) + 4%));
+}
+.zorx-vision-copy {
+  margin: clamp(3.5rem, 9.5vw, 12rem) 0 0 58.3%;
+  width: 34.5%;
+  font-weight: 400;
+  font-size: clamp(1rem, 1.38vw, 1.75rem);
+  line-height: 1.56;
+  letter-spacing: 0.002em;
+  color: var(--zorx-white);
+}
+/* Tablet: same asymmetry, paragraph gets the width it needs to stay readable. */
+@media (max-width: 1024px) {
+  .zorx-vision-copy {
+    margin-left: 46%;
+    width: 54%;
+  }
+}
+/* Mobile: headline and paragraph stack; the outline grows past the right edge. */
+@media (max-width: 640px) {
+  .zorx-vision {
+    padding-block: 5.5rem 5rem;
+  }
+  .zorx-vision-title {
+    font-size: clamp(2rem, 10.6vw, 4rem);
+  }
+  .zorx-vision-copy {
+    margin: 9.5rem 0 0;
+    width: 100%;
+    max-width: 22.5rem;
+  }
+  .zorx-vision-bird {
+    top: 4.75rem;
+    left: 1.25rem;
+    width: 142vw;
+  }
+  .zorx-vision-outline,
+  .zorx-vision-trail {
+    stroke-width: 1.15; /* ≈ 1.2 px at this scale */
+  }
+}
+
+/* ======================================================================
  * Services — editorial selector with perching bird
  * ==================================================================== */
 .zorx-services {

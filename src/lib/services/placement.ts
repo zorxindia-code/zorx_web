@@ -13,6 +13,9 @@ export interface PlacementInput {
   /** Left / right edges of the next row's text (the tail hangs into that row). */
   nextTextLeft: number;
   nextTextRight: number;
+  /** Lowest point the resting bird may reach (px from the section top) — set for
+   *  the last row, whose tail hangs into the section's bottom padding. */
+  floorY?: number;
 }
 
 export interface Placement {
@@ -25,8 +28,9 @@ export interface Placement {
  * Where the bird video sits so that, at rest, its feet are on the divider:
  *  - size from the row height (perched height = birdHeightOfRow × row)
  *  - resting bird against the section margin on its side (left or right)
- *  - shrinks if needed so it never overlaps the active row's text, and the part
- *    hanging below the line stays clear of the next row's text
+ *  - shrinks if needed so it never overlaps the active row's text, the part
+ *    hanging below the line stays clear of the next row's text, and (last row)
+ *    the whole tail stays inside the section
  *  - the video's outer edge stays beyond the section, so the bird enters and
  *    leaves from off-screen on its side
  */
@@ -56,6 +60,10 @@ export function placeBird(
   }
   if (sText > 0) s = Math.min(s, sText);
   if (sTail > 0) s = Math.min(s, sTail);
+  if (p.floorY != null && m.bird.y1 > m.lineY) {
+    const sFloor = (p.floorY - p.dividerY) / (m.bird.y1 - m.lineY);
+    if (sFloor > 0) s = Math.min(s, sFloor);
+  }
   s = Math.max(s, T.minBirdHeight / above);
 
   const x = side === "right" ? p.width - margin - m.bird.x1 * s : margin - m.bird.x0 * s;

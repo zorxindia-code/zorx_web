@@ -67,7 +67,7 @@ If `Loading.mp4` changes, regenerate `loading-bird-ice.mp4` (command in `src/con
 
 ## Services section (perching birds)
 
-`src/components/services/` — four full-width rows (Branding, Website, Production, Marketing) set in **Outfit** (variable, via `next/font`; 500 outlined → 700 solid). Hover (mouse/pen) or tap highlights a row immediately; after the intent delay (`SERVICES_TUNING`: 0.75 s hover, 0.45 s tap) that row's bird flies in and perches on the divider below it. When the row is left (or tapped again) the bird **takes off and flies out** — a real exit clip, not a fade — and the title returns to outlined once it has gone. One controller owns the bird (idle → entering → perched → exiting); it only changes state when a flight has finished, so there is never more than one bird. Keyboard focus works like hover. Content and clips live in `src/config/services.ts`. **Website**: woodpecker, enters from and leaves to the right. **Production**: owl, enters from and leaves to the left (`side: "left"`). **Branding**: peacock, left in / left out. Marketing has no bird yet. Each bird has its own enter/exit `<video>` pair (fetched once, kept buffered).
+`src/components/services/` — four full-width rows (Branding, Website, Production, Marketing) set in **Outfit** (variable, via `next/font`; 500 outlined → 700 solid). Hover (mouse/pen) or tap highlights a row immediately; after the intent delay (`SERVICES_TUNING`: 0.75 s hover, 0.45 s tap) that row's bird flies in and perches on the divider below it. When the row is left (or tapped again) the bird **takes off and flies out** — a real exit clip, not a fade — and the title returns to outlined once it has gone. One controller owns the bird (idle → entering → perched → exiting); it only changes state when a flight has finished, so there is never more than one bird. Keyboard focus works like hover. Content and clips live in `src/config/services.ts`. **Website**: woodpecker, enters from and leaves to the right. **Production**: owl, enters from and leaves to the left (`side: "left"`). **Branding**: peacock, left in / left out. **Marketing**: macaw, right in / right out (last row: it perches on the list's bottom border, and its long tail is kept inside the section). Each bird has its own enter/exit `<video>` pair (fetched once, kept buffered).
 
 Birds are pre-keyed offline — the browser never chroma-keys:
 
@@ -86,4 +86,25 @@ Current Production clips: source `bird-videos/owl.mp4` (one take, split on the s
 
 Quality flags (opt-in; the Website clips use the original defaults): `--key linear` (alpha proportional to greenness + true colour recovery — keeps motion-blurred feathers, no tints or dark rims), `--temporal` (steadies alpha where the source is static — no shimmer at rest), `--stabilize` (pins the source perch line, so the bird lands on a rigid line like the site divider).
 
-Current Branding clips: source `bird-videos/peacock.mp4`, crop `1500:1080:0:0`, flags `--key protect --temporal --max-shift 45 --line-pad 6 --feather-bottom 40 --crf 24 --hevc-q 65 --alpha-quality 0.95` — enter 0–2.5417 s (`branding-bird`, `--rest last --stabilize`), exit 4.75–7.0 s (`branding-bird-exit`, `--rest first --stabilize release --feather-top 90`). The two clips meet on pose-matched forward-facing frames (2.50 s ↔ 4.75 s). `--key protect` keeps green plumage: green pixels ≥ 6 px inside the silhouette (clearly green-dominant, not near-black, > 55 from the key) are kept as filmed. Rendered at `size: 1.3`.
+Current Branding clips: source `bird-videos/peacock.mp4` (portrait 1080×1920, 10 s, one take; the peacock lands in mid-air — there is no perch line in the footage, so the perch is set with `--line-y` where its toes grip):
+
+```bash
+COMMON="--in public/videos/bird-videos/peacock.mp4 --crop 1080:1300:0:400 --width 720 --line-y 1208 \
+  --key protect --protect-still --temporal --crf 31 --hevc-q 56 --alpha-quality 0.9"
+node scripts/process-bird-video.mjs $COMMON --name branding-bird      --start 0      --end 5.4583 --speedup 4.0:5.4167:2 --rest last
+node scripts/process-bird-video.mjs $COMMON --name branding-bird-exit --start 5.4167 --end 10                           --rest first
+```
+
+Split on one frame (5.417 s, the stillest perched frame), so enter and exit meet exactly; no pose-matched cut — the bird drifts while it settles, so a cut would jump. The settle after landing (4.0–5.417 s) plays at 2×. The footage has no right-facing pose (front-facing while perched, turns left to take off). The crop excludes the watermark at the bottom right. `--protect-still` keeps the green tail but keys the green-screen mixtures of fast wings. Rendered at `size: 1.52`.
+
+Current Marketing clips: source `bird-videos/macaw.mp4` (one take; the macaw flies in from the top right, lands, rests facing forward, takes off to the right). The source frame's bottom edge cuts the resting macaw's tail (~50 px of tip missing in every rest frame), so the canvas is extended below the source and the tip is rebuilt from a frame of the same take where the whole tail is in shot:
+
+```bash
+COMMON="--in public/videos/bird-videos/macaw.mp4 --crop 1580:1080:340:0 --pad-bottom 150 \
+  --tail-ref 2.5 --tail-gain 1.22/1.06/1.25 --width 720 --erase 1694:854:90:90 \
+  --key protect --protect-still --temporal --line-pad 6 --line-green --crf 24 --hevc-q 65 --alpha-quality 0.95"
+node scripts/process-bird-video.mjs $COMMON --name marketing      --start 0      --end 3.9167 --rest last  --stabilize
+node scripts/process-bird-video.mjs $COMMON --name marketing-exit --start 4.5833 --end 7      --rest first --stabilize release --feather-top 90
+```
+
+The clips meet on pose-matched resting frames (3.875 s ↔ 4.583 s). Canvas 1580×1230 source px → 720×560 video. Flags added for it (all opt-in): `--pad-bottom N` (transparent canvas below the source), `--tail-ref T` (rebuilds a tail tip cut by the bottom edge from the frame at T s: one fixed tip profile, taper-matched and straightened, following each frame's tail centre and tilt, cross-faded at the seam; a tail only swinging through the edge during landing is faded instead), `--tail-gain` (pins the tip colour so both clips match), `--line-green` (colour-aware line removal: the line's dark-green fading ends are removed, the bird's saturated tail crossing it is kept, premultiplied fill), `--protect-still` (only green that holds still is protected plumage — keeps the green forehead, keys the green-screen mixtures of fast wings). Rendered at `size: 1.3`.

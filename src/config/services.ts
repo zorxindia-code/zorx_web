@@ -12,6 +12,7 @@
 import websiteMeta from "../../public/videos/bird/website.json";
 import productionMeta from "../../public/videos/bird/production.json";
 import brandingMeta from "../../public/videos/bird/branding-bird.json";
+import marketingMeta from "../../public/videos/bird/marketing.json";
 
 export interface BirdPlacement {
   /** Video frame size (px). */
@@ -60,14 +61,16 @@ export const SERVICES: readonly Service[] = [
   {
     id: "branding",
     label: "Branding",
-    // Peacock, source public/videos/bird-videos/peacock.mp4: enter 0–2.542 s (fly in,
-    // land, settle facing forward), exit 4.75–7.0 s (take off, fly left) — two
-    // pose-matched frames, so the idle head-turning in between is skipped. Crop
-    // 1500:1080:0:0, "protect" key (keeps the natural green tail), line-stabilised.
+    // Peacock, source public/videos/bird-videos/peacock.mp4 (portrait 1080×1920,
+    // one take, split on the same frame, 5.417 s): enter 0–5.458 s (fly in from the
+    // left, land, settle facing forward — the settle at 2×), exit 5.417–10.0 s
+    // (wings up, take off, fly left). No perch line in this footage: the perch is
+    // set where the toes grip (source y 1208). Crop 1080:1300:0:400, "protect" key
+    // with --protect-still (keeps the green tail, no green fringes on fast wings).
     bird: {
       id: "branding",
       side: "left", // peacock: enters from the left, leaves to the left
-      size: 1.3,
+      size: 1.52, // ~+17% over the earlier 1.3 (still clamped clear of the text)
       enter: { webm: "/videos/bird/branding-bird.webm", hevc: "/videos/bird/branding-bird-hevc.mp4" },
       exit: { webm: "/videos/bird/branding-bird-exit.webm", hevc: "/videos/bird/branding-bird-exit-hevc.mp4" },
       meta: brandingMeta,
@@ -102,7 +105,23 @@ export const SERVICES: readonly Service[] = [
       meta: productionMeta,
     },
   },
-  { id: "marketing", label: "Marketing", bird: null }, // future clip
+  {
+    id: "marketing",
+    label: "Marketing",
+    // Macaw, source public/videos/bird-videos/macaw.mp4: enter 0–3.917 s (fly in from
+    // the right, land, settle facing forward), exit 4.583–7.0 s (take off, fly right)
+    // — two pose-matched resting frames. Crop 1580:1080:340:0 + 150 px transparent
+    // canvas below the source, where the tail tip the source frame cuts off is
+    // rebuilt. See README for the exact commands.
+    bird: {
+      id: "marketing",
+      side: "right", // macaw: enters from the right, leaves to the right
+      size: 1.3,
+      enter: { webm: "/videos/bird/marketing.webm", hevc: "/videos/bird/marketing-hevc.mp4" },
+      exit: { webm: "/videos/bird/marketing-exit.webm", hevc: "/videos/bird/marketing-exit-hevc.mp4" },
+      meta: marketingMeta,
+    },
+  },
 ];
 
 export const SERVICES_TUNING = {
@@ -110,8 +129,10 @@ export const SERVICES_TUNING = {
   hoverDelayMs: 750,
   /** Tap: short intentional delay before the bird flies in. */
   tapDelayMs: 450,
-  /** Resting bird height above the divider, as a fraction of the row height. */
-  birdHeightOfRow: 0.62,
+  /** Resting bird height above the divider, as a fraction of the row height.
+   *  0.775 = 1.25 × the earlier 0.62 — every bird (enter and exit share one
+   *  placement) 25% larger; the text / tail / section clamps still apply. */
+  birdHeightOfRow: 0.775,
   /** Bird never smaller than this (px above the line), even on tight layouts. */
   minBirdHeight: 34,
   /** Fade used only when a bird has no exit clip, or with reduced motion (s). */

@@ -38,7 +38,9 @@ const IN = args.in;
 const NAME = args.name;
 const START = Number(args.start ?? 0);
 const END = Number(args.end);
-const [CW, CH, CX, CY] = args.crop.split(":").map(Number); // crop in source px
+const [CW, SRC_CH, CX, CY] = args.crop.split(":").map(Number); // crop in source px
+const CH = SRC_CH + Number(args["pad-bottom"] ?? 0); // working canvas height (crop + bottom pad)
+const CUT_Y = SRC_CH - 1; // last row that came from the source
 const OUT_W = Number(args.width ?? 720);
 const OUT_DIR = args.out ?? "public/videos/bird";
 const ERASE = args.erase ? args.erase.split(":").map(Number) : null; // x:y:w:h in source px
@@ -69,6 +71,27 @@ const STABILIZE = "stabilize" in args;
 // last press before it snaps back), then hold — so the flying bird doesn't bob
 // with the springing line.
 const STAB_RELEASE = args.stabilize === "release";
+// --pad-bottom N   extend the canvas N px below the source frame (keyed transparent),
+//                  for birds whose tail is cut by the source's bottom edge
+// --tail-ref T     rebuild that cut tail tip from the frame at T s (a frame of the same
+//                  take where the whole tail is in shot) — see rebuildTail()
+// --tail-feather N frames whose cut tail can't be rebuilt (fast, swinging tail) fade
+//                  out over the last N source rows instead of ending on a hard edge
+const PAD_BOTTOM = Number(args["pad-bottom"] ?? 0);
+const TAIL_REF = args["tail-ref"] != null ? Number(args["tail-ref"]) : null;
+const TAIL_FEATHER = Number(args["tail-feather"] ?? 40);
+// --line-green     colour-aware line removal (for birds with no green at the line): in
+//                  the band, green-dominant pixels are line (its ends fade out through
+//                  dark green, which the protect key would keep as plumage), saturated
+//                  pixels are bird crossing it; fill is premultiplied
+const LINE_GREEN = "line-green" in args;
+// --line-y Y       footage with no perch line (the bird lands in mid-air): the perch
+//                  height in source px — where the feet grip — used as the line for
+//                  placement; nothing is detected or removed
+const FIXED_LINE = args["line-y"] != null ? Number(args["line-y"]) - CY : null;
+// --protect-still  with --key protect: only green that holds still between frames is
+//                  protected (a bird with a little green that flies fast)
+const PROTECT_STILL = "protect-still" in args;
 const CRF = Number(args.crf ?? 32);
 const HEVC_Q = Number(args["hevc-q"] ?? 55);
 const ALPHA_Q = Number(args["alpha-quality"] ?? 0.85);
@@ -87,23 +110,41 @@ const FRAME = CW * CH * 3;
 const frames = [];
 
 // ---------------------------------------------------------------- decode
-await new Promise((resolve, reject) => {
-  const ff = spawn("ffmpeg", [
-    "-loglevel", "error", "-ss", String(START), "-t", String(END - START), "-i", IN,
-    "-vf", `fps=${FPS},crop=${CW}:${CH}:${CX}:${CY}`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
-  ]);
-  let buf = Buffer.alloc(0);
-  ff.stdout.on("data", (c) => {
-    buf = Buffer.concat([buf, c]);
-    while (buf.length >= FRAME) {
-      frames.push(Buffer.from(buf.subarray(0, FRAME)));
-      buf = buf.subarray(FRAME);
-    }
+// The bottom pad is filled with the source's own backdrop green, so it keys out
+// exactly like the rest of the screen.
+const PAD_COLOR = args["pad-color"] ?? "0x19E622";
+const decode = (ss, t, into, extra = []) =>
+  new Promise((resolve, reject) => {
+    const vf = `fps=${FPS},crop=${CW}:${SRC_CH}:${CX}:${CY}` + (PAD_BOTTOM ? `,pad=${CW}:${CH}:0:0:color=${PAD_COLOR}` : "");
+    const ff = spawn("ffmpeg", [
+      "-loglevel", "error", "-ss", String(ss), ...(t ? ["-t", String(t)] : []), "-i", IN,
+      "-vf", vf, ...extra, "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
+    ]);
+    let buf = Buffer.alloc(0);
+    ff.stdout.on("data", (c) => {
+      buf = Buffer.concat([buf, c]);
+      while (buf.length >= FRAME) {
+        into.push(Buffer.from(buf.subarray(0, FRAME)));
+        buf = buf.subarray(FRAME);
+      }
+    });
+    ff.stderr.on("data", (d) => process.stderr.write(d));
+    ff.on("close", (code) => (code === 0 ? resolve() : reject(new Error("ffmpeg decode failed"))));
   });
-  ff.stderr.on("data", (d) => process.stderr.write(d));
-  ff.on("close", (code) => (code === 0 ? resolve() : reject(new Error("ffmpeg decode failed"))));
-});
-console.log(`decoded ${frames.length} frames ${CW}×${CH}`);
+await decode(START, END - START, frames);
+// --speedup A:B:K  play source time [A, B) K× faster (keep every K-th frame) — for an
+// idle stretch inside a continuous take, e.g. a head turn before take-off.
+if (args.speedup) {
+  const [a, b, k] = args.speedup.split(":").map(Number);
+  let j = 0;
+  const kept = frames.filter((_, f) => {
+    const t = START + f / FPS;
+    return t < a - 1e-6 || t >= b - 1e-6 || j++ % k === 0;
+  });
+  console.log(`speedup ${a}–${b} s ×${k}: ${frames.length} → ${kept.length} frames`);
+  frames.splice(0, frames.length, ...kept);
+}
+console.log(`decoded ${frames.length} frames ${CW}×${SRC_CH}${PAD_BOTTOM ? ` (+${PAD_BOTTOM} px transparent below)` : ""}`);
 
 // ---------------------------------------------------------------- key
 const isDark = (r, g, b) => r < 80 && g < 80 && b < 80;
@@ -155,6 +196,7 @@ const out = Buffer.alloc(frames.length * CW * CH * 4);
 const meta = [];
 
 let prevRgb = null;
+let prevProt = null; // protected-plumage map of the previous frame (--protect-still)
 let prevAlpha = null;
 const shifts = [];
 frames.forEach((rgb, f) => {
@@ -204,6 +246,17 @@ frames.forEach((rgb, f) => {
         const x0 = Math.max(0, x - r), y0 = Math.max(0, y - r), x1 = Math.min(CW, x + r + 1), y1 = Math.min(CH, y + r + 1);
         return I[y1 * (CW + 1) + x1] - I[y0 * (CW + 1) + x1] - I[y1 * (CW + 1) + x0] + I[y0 * (CW + 1) + x0];
       };
+      if (PROTECT_STILL) {
+        // Only plumage that holds still counts as green feathers: a fast wing or tail
+        // smears yellow over the screen into "green" mixtures that must be keyed.
+        // Hysteresis keeps a turning head's green protected while it moves.
+        const cmp = f > 0 ? frames[f - 1] : frames[1] ?? rgb;
+        for (let k = 0, p = 0; k < n; k++, p += 3) {
+          if (!green[k]) continue;
+          const diff = Math.abs(rgb[p] - cmp[p]) + Math.abs(rgb[p + 1] - cmp[p + 1]) + Math.abs(rgb[p + 2] - cmp[p + 2]);
+          if (!(diff < 30 || (prevProt && prevProt[k] && diff < 80))) green[k] = 0;
+        }
+      }
       const Inot = integral(notFg);
       prot = new Uint8Array(n);
       for (let y = 0; y < CH; y++)
@@ -211,6 +264,7 @@ frames.forEach((rgb, f) => {
           const k = y * CW + x;
           if (green[k] && !notFg[k] && box(Inot, x, y, R) === 0) prot[k] = 1; // deep inside → feather
         }
+      prevProt = prot;
       const Ip = integral(prot);
       zone = new Uint8Array(n);
       for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) if (box(Ip, x, y, R2) > 0) zone[y * CW + x] = 1;
@@ -265,7 +319,7 @@ frames.forEach((rgb, f) => {
     }
   }
   // 2. remove the source perch line
-  const band = lineBand(rgb);
+  const band = FIXED_LINE != null ? null : lineBand(rgb);
   if (band) {
     const yA = Math.max(0, band.top - 2);
     const yB = Math.min(CH - 1, band.bottom + 2);
@@ -278,8 +332,27 @@ frames.forEach((rgb, f) => {
         // Keep only clearly bird pixels (bright and solid, e.g. claws); anything
         // dark or semi-transparent in the band is line or line edge.
         const lum = 0.299 * rgb[p] + 0.587 * rgb[p + 1] + 0.114 * rgb[p + 2];
-        if (lum >= 90 && out[q + 3] >= (KEY === "dominance" ? 200 : 230)) continue;
         const t = (y - yA) / (yB - yA);
+        if (LINE_GREEN) {
+          // Colour-aware: the line is neutral black fading out through dark green;
+          // a saturated (blue / yellow) or bright solid pixel is bird crossing it.
+          const r = rgb[p], g = rgb[p + 1], b = rgb[p + 2];
+          const greenish = g - Math.max(r, b) > 12; // dark line greens lead by 13–30; brown tail ≤ 6
+          const sat = Math.max(r, g, b) - Math.min(r, g, b);
+          // Line = near-black and neutral (max < 85, chroma < 28) or dark green; the
+          // macaw's dark brown / blue tail is just warmer or more saturated than that.
+          const lineLike = greenish || (Math.max(r, g, b) < 85 && sat < 28);
+          if (!lineLike && out[q + 3] >= 200) continue;
+          // Line pixel. Bird on both sides (feet gripping it, a tail hanging through
+          // it): rebuild across, premultiplied so edges don't turn grey. Otherwise it
+          // is backdrop behind the line — a fill from one side would smear the bird.
+          const aa = out[ia + 3] * (1 - t), ab = out[ib + 3] * t, na = aa + ab;
+          if (out[ia + 3] < 128 || out[ib + 3] < 128 || na < 1) { out[q] = out[q + 1] = out[q + 2] = 130; out[q + 3] = 0; continue; }
+          for (let c = 0; c < 3; c++) out[q + c] = Math.round((out[ia + c] * aa + out[ib + c] * ab) / na);
+          out[q + 3] = Math.round(na);
+          continue;
+        }
+        if (lum >= 90 && out[q + 3] >= (KEY === "dominance" ? 200 : 230)) continue;
         for (let c = 0; c < 4; c++) out[q + c] = Math.round(out[ia + c] * (1 - t) + out[ib + c] * t);
       }
     }
@@ -309,8 +382,228 @@ frames.forEach((rgb, f) => {
       }
     }
   }
-  meta.push({ f, line: band?.centre ?? null });
+  meta.push({ f, line: FIXED_LINE ?? band?.centre ?? null });
 });
+
+// 4b. rebuild a tail tip cut off by the source's bottom edge
+if (TAIL_REF != null && PAD_BOTTOM > 0) await rebuildTail();
+
+/**
+ * The source frame's bottom edge cuts the resting bird's tail. Another frame of
+ * the same take (`--tail-ref`) shows the whole tail, but in a different pose
+ * (shorter, curved). So its real tip is borrowed:
+ *  - one fixed tip profile for the whole clip (no per-frame flicker): the
+ *    reference rows below the row whose width equals the cut width, stretched
+ *    vertically by the measured taper ratio (resting tail ÷ reference tail)
+ *  - per frame it only follows the tail: centre, tilt and width at the cut,
+ *    lightly smoothed over neighbouring frames
+ *  - the reference tail's curve is straightened (each row re-centred)
+ * Frames where the tail is swinging too fast to match get a soft fade instead.
+ */
+async function rebuildTail() {
+  const refRgb = [];
+  await decode(TAIL_REF, 0, refRgb, ["-frames:v", "1"]);
+  const ref = keySimple(refRgb[0]);
+  const A = (buf, o, x, y) => buf[o + (y * CW + x) * 4 + 3];
+  /** Widest opaque run on a row (gaps ≤ 2 px bridged). */
+  const run = (buf, o, y) => {
+    let best = { w: 0, c: 0 }, s = -1, gap = 0, e = -1;
+    const close = () => {
+      if (s >= 0 && e - s + 1 > best.w) best = { w: e - s + 1, c: (s + e) / 2 };
+      s = -1;
+    };
+    for (let x = 0; x < CW; x++) {
+      if (A(buf, o, x, y) > 128) { if (s < 0) s = x; e = x; gap = 0; }
+      else if (s >= 0 && ++gap > 2) close();
+    }
+    close();
+    return best;
+  };
+  // Reference tail profile, from well above the cut down to its tip.
+  const refRows = new Map();
+  let refTip = -1;
+  for (let y = CUT_Y - 220; y < CH; y++) {
+    const r = run(ref, 0, y);
+    refRows.set(y, r);
+    if (r.w >= 2) refTip = y;
+  }
+  if (refTip < 0 || refTip >= CUT_Y - 2) {
+    console.warn("tail-ref: reference tail is not complete in shot — skipped");
+    return;
+  }
+
+  // Per frame: tail at the cut (width, centre, tilt) and its taper rate just above it.
+  const S = CW * CH * 4;
+  // The source's last rows are slightly less saturated (encoder edge), which keys
+  // to a faint haze; now that the canvas continues below, it would show as a seam.
+  for (let f = 0; f < frames.length; f++)
+    for (let y = CUT_Y - 5; y <= CUT_Y; y++)
+      for (let x = 0; x < CW; x++) { const q = f * S + (y * CW + x) * 4 + 3; if (out[q] < 48) out[q] = 0; }
+  const info = frames.map((_, f) => {
+    const o = f * S;
+    const b = run(out, o, CUT_Y);
+    if (!b.w) return null;
+    const up = run(out, o, CUT_Y - 30);
+    const slope = up.w && Math.abs(b.c - up.c) < 30 ? (b.c - up.c) / 30 : 0;
+    const up40 = run(out, o, CUT_Y - 40);
+    return { ...b, slope, rate: up40.w ? (up40.w - b.w) / 40 : 0, ok: false };
+  });
+  const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
+  // The resting tail hangs through the edge for a long unbroken stretch; a tail
+  // swinging through it during landing touches it only briefly. Rebuild only the
+  // longest consecutive run of edge-touching frames; any shorter run is faded.
+  let best = [0, -1];
+  for (let f = 0; f < info.length; ) {
+    if (!info[f]) { f++; continue; }
+    let e = f;
+    while (e + 1 < info.length && info[e + 1]) e++;
+    if (e - f > best[1] - best[0]) best = [f, e];
+    f = e + 1;
+  }
+  for (let f = best[0]; f <= best[1]; f++) if (info[f]) info[f].ok = true;
+  const good = info.filter((i) => i?.ok);
+  if (!good.length) { console.log("tail-ref: no frame needs a rebuilt tail"); return; }
+  const Wm = med(good.map((i) => i.w));
+  const rateCur = Math.max(0, med(good.map((i) => i.rate)));
+  // Where to graft: the reference row (in its lower tail) whose local taper best
+  // matches the resting tail's taper at the cut — the borrowed tip then continues
+  // the tail's own narrowing instead of pinching in. Scaled uniformly (width and
+  // length together) so the cut widths agree.
+  const wRef = (y) => refRows.get(Math.max(CUT_Y - 220, Math.min(refTip, y)))?.w ?? 0;
+  let M = null, bestErr = Infinity;
+  for (let y = refTip - 90; y <= refTip - 12; y++) {
+    if (wRef(y) < 8) continue;
+    const err = Math.abs((wRef(y - 10) - wRef(y + 10)) / 20 - rateCur) + (0.5 * Math.abs(wRef(y) - Wm)) / Wm;
+    if (err < bestErr - 1e-6) { bestErr = err; M = y; }
+  }
+  if (M == null) { console.warn("tail-ref: no usable reference row — skipped"); return; }
+  const refWM = wRef(M);
+  const K = Math.max(0.8, Math.min(2.2, Wm / refWM));
+  const tipLen = Math.round((refTip - M) * K);
+  // Colour match: reference rows just above M vs each frame's rows just above the cut.
+  const meanRGB = (buf, o, y0, y1) => {
+    const s = [0, 0, 0]; let n = 0;
+    for (let y = y0; y <= y1; y++) for (let x = 0; x < CW; x++) {
+      const q = o + (y * CW + x) * 4;
+      if (buf[q + 3] > 200) { s[0] += buf[q]; s[1] += buf[q + 1]; s[2] += buf[q + 2]; n++; }
+    }
+    return n ? s.map((v) => v / n) : null;
+  };
+  const refC = meanRGB(ref, 0, M - 6, M);
+  const gains = good.map((_, j) => j).filter((j) => j % 4 === 0).map((j) => {
+    const f = info.indexOf(good[j]);
+    const c = meanRGB(out, f * S, CUT_Y - 6, CUT_Y);
+    return c ? c.map((v, i) => v / Math.max(1, refC[i])) : [1, 1, 1];
+  });
+  // --tail-gain r/g/b pins it, so an enter and an exit clip use the identical tip.
+  const gain = args["tail-gain"]
+    ? args["tail-gain"].split("/").map(Number)
+    : [0, 1, 2].map((i) => Math.max(0.8, Math.min(1.25, med(gains.map((g) => g[i])))));
+  console.log(
+    `tail-ref: frames ${best[0]}–${best[1]} rebuilt, cut width ${Wm}px, taper ${rateCur.toFixed(2)}px/row → reference row ${M} (${refWM}px), ×${K.toFixed(2)}, ` +
+      `tip +${tipLen}px below the source edge, gain ${gain.map((g) => g.toFixed(2)).join("/")}`,
+  );
+  if (tipLen + 1 > PAD_BOTTOM) console.warn(`tail-ref: --pad-bottom ${PAD_BOTTOM} is shorter than the tip (${tipLen})`);
+
+  // Smooth centre / tilt / width over neighbouring rebuilt frames (±2).
+  const smooth = (f, key) => {
+    let s = 0, n = 0;
+    for (let d = -2; d <= 2; d++) { const i = info[f + d]; if (i?.ok) { s += i[key]; n++; } }
+    return s / n;
+  };
+  const refCentre = (y) => {
+    const y0 = Math.floor(y), t = y - y0;
+    const a = refRows.get(y0), b = refRows.get(Math.min(refTip, y0 + 1));
+    return a.c * (1 - t) + b.c * t;
+  };
+  let feathered = 0;
+  info.forEach((it, f) => {
+    if (!it) return;
+    const o = f * S;
+    if (!it.ok) {
+      // Swinging tail: soft fade into the source edge instead of a hard cut.
+      feathered++;
+      for (let y = Math.max(0, CUT_Y - TAIL_FEATHER + 1); y <= CUT_Y; y++) {
+        const k = (CUT_Y - y + 1) / TAIL_FEATHER, e = k * k * (3 - 2 * k);
+        for (let x = 0; x < CW; x++) { const q = o + (y * CW + x) * 4 + 3; out[q] = Math.round(out[q] * e); }
+      }
+      return;
+    }
+    // Centre straight from this frame (so the tip stays on its own tail as it
+    // sways); tilt and width lightly smoothed.
+    const c = it.c, slope = smooth(f, "slope"), w = smooth(f, "w");
+    const BLEND = 6; // rows over which the frame's own last row hands over to the tip
+    const last = Buffer.from(out.subarray(o + CUT_Y * CW * 4, o + (CUT_Y + 1) * CW * 4));
+    const sw = w / refWM;
+    const half = Math.ceil((refWM * sw) / 2) + 8;
+    for (let dy = 1; dy <= tipLen && CUT_Y + dy < CH; dy++) {
+      const yr = M + dy / K;
+      const ry0 = Math.floor(yr), ry1 = Math.min(refTip, ry0 + 1), ty = yr - ry0;
+      const rc = refCentre(yr);
+      const cx = c + slope * dy;
+      const y = CUT_Y + dy;
+      for (let x = Math.max(0, Math.floor(cx - half)); x <= Math.min(CW - 1, Math.ceil(cx + half)); x++) {
+        const xr = rc + (x - cx) / sw;
+        const rx0 = Math.floor(xr), tx = xr - rx0;
+        if (rx0 < 0 || rx0 + 1 >= CW) continue;
+        // Bilinear, alpha-weighted (premultiplied) sample of the reference.
+        let pa = 0, pr = 0, pg = 0, pb = 0;
+        for (const [sx, sy, wgt] of [[rx0, ry0, (1 - tx) * (1 - ty)], [rx0 + 1, ry0, tx * (1 - ty)], [rx0, ry1, (1 - tx) * ty], [rx0 + 1, ry1, tx * ty]]) {
+          const q = (sy * CW + sx) * 4, a = (ref[q + 3] / 255) * wgt;
+          pa += a; pr += ref[q] * a; pg += ref[q + 1] * a; pb += ref[q + 2] * a;
+        }
+        const q = o + (y * CW + x) * 4;
+        let R = pa > 0.02 ? Math.min(255, (pr / pa) * gain[0]) : 130;
+        let Gc = pa > 0.02 ? Math.min(255, (pg / pa) * gain[1]) : 130;
+        let B = pa > 0.02 ? Math.min(255, (pb / pa) * gain[2]) : 130;
+        let al = pa;
+        if (dy <= BLEND) {
+          // Seam: start from the frame's own last source row (carried along the
+          // tilt) and cross-fade into the borrowed tip.
+          const lx = Math.round(x - slope * dy);
+          if (lx >= 0 && lx < CW) {
+            const l = lx * 4, la = last[l + 3] / 255, t = dy / (BLEND + 1), e = t * t * (3 - 2 * t);
+            const na = la * (1 - e) + al * e;
+            if (na > 0.004) {
+              R = (last[l] * la * (1 - e) + R * al * e) / na;
+              Gc = (last[l + 1] * la * (1 - e) + Gc * al * e) / na;
+              B = (last[l + 2] * la * (1 - e) + B * al * e) / na;
+            }
+            al = na;
+          }
+        }
+        if (al < 0.02) continue;
+        out[q] = Math.round(R); out[q + 1] = Math.round(Gc); out[q + 2] = Math.round(B);
+        out[q + 3] = Math.round(al * 255);
+      }
+    }
+  });
+  if (feathered) console.log(`tail-ref: ${feathered} fast-swinging frames faded into the edge instead`);
+}
+
+/** Plain linear key + colour recovery (used for reference frames). */
+function keySimple(rgb) {
+  const rs = [], gs = [], bs = [];
+  for (let p = 0; p < CW * CH * 3; p += 3 * 997) {
+    const d = rgb[p + 1] - Math.max(rgb[p], rgb[p + 2]);
+    if (d > 150) { rs.push(rgb[p]); gs.push(rgb[p + 1]); bs.push(rgb[p + 2]); }
+  }
+  const md = (a) => (a.sort((x, y) => x - y), a[a.length >> 1] ?? 0);
+  const G = [md(rs), md(gs), md(bs)];
+  const D0 = 12, D1 = G[1] - Math.max(G[0], G[2]) - 14;
+  const o = Buffer.alloc(CW * CH * 4);
+  for (let p = 0, q = 0; p < CW * CH * 3; p += 3, q += 4) {
+    const r = rgb[p], g = rgb[p + 1], b = rgb[p + 2];
+    const d = g - Math.max(r, b);
+    const a = d <= D0 ? 1 : d >= D1 ? 0 : (D1 - d) / (D1 - D0);
+    if (a < 0.04) { o[q] = o[q + 1] = o[q + 2] = 130; continue; }
+    let fr = (r - (1 - a) * G[0]) / a, fg = (g - (1 - a) * G[1]) / a, fb = (b - (1 - a) * G[2]) / a;
+    fr = Math.max(0, Math.min(255, fr)); fb = Math.max(0, Math.min(255, fb));
+    fg = Math.max(Math.min(fr, fb), Math.min(Math.max(fr, fb) + 6, Math.max(0, Math.min(255, fg))));
+    o[q] = fr; o[q + 1] = fg; o[q + 2] = fb; o[q + 3] = Math.round(a * 255);
+  }
+  return o;
+}
 
 // 5. stabilise: shift every frame so the source line sits at the resting height
 if (STABILIZE) {
@@ -410,5 +703,5 @@ await enc(["-vf", `${scale},format=yuva420p`, "-c:v", "libvpx-vp9", "-pix_fmt", 
 await enc(["-vf", `${scale},format=bgra`, "-c:v", "hevc_videotoolbox", "-alpha_quality", String(ALPHA_Q), "-q:v", String(HEVC_Q), "-tag:v", "hvc1", "-an", "-movflags", "+faststart", join(OUT_DIR, `${NAME}-hevc.mp4`)]);
 writeFileSync(join(OUT_DIR, `${NAME}.json`), JSON.stringify(placement, null, 2) + "\n");
 const { unlinkSync } = await import("node:fs");
-unlinkSync(raw);
+if (!process.env.KEEP_RAW) unlinkSync(raw);
 console.log(`wrote ${OUT_DIR}/${NAME}.webm, ${NAME}-hevc.mp4, ${NAME}.json`);
