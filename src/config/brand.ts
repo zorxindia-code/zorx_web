@@ -47,6 +47,12 @@ export const ASSETS = {
    * o.png itself is untouched.
    */
   birdIcon: { src: "/logo/derived/bird-white.png", width: 540, height: 266 },
+  /**
+   * Hand-drawn ring ("sun") that circles the loading bird: black ink on
+   * transparent, 235×237, ring centre at (116.5, 117.5), inner radius ≈108.
+   * Shown white via CSS (the loaders sit on black); the file is untouched.
+   */
+  loadingSun: { src: "/icons/loading_sun.png", width: 235, height: 237, cx: 116.5, cy: 117.5 },
 
   /**
    * Showreel, re-encoded from /videos/showreel.mp4 (3840×2160, 80 MB, with audio)

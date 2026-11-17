@@ -65,15 +65,48 @@ export default function ServicesSection() {
     // ---------------------------------------------------------- bird helpers
     /** First use of a bird: give its pair sources (fetched once, kept buffered). */
     const load = (clip: BirdClip) => {
-      const { enter, exit } = P(clip.id);
+      const { enter } = P(clip.id);
       if (enter.dataset.loaded) return;
       enter.dataset.loaded = "1";
       enter.src = src(clip.enter);
       enter.preload = "auto";
-      if (clip.exit) {
-        exit.src = src(clip.exit);
-        exit.preload = "auto";
-      }
+      // The entrance gets the whole connection first; the take-off clip follows
+      // once it is in (or as soon as it is needed — see loadExit in startExit).
+      onFull(enter, () => loadExit(clip));
+    };
+    const loadExit = (clip: BirdClip) => {
+      const { exit } = P(clip.id);
+      if (!clip.exit || exit.dataset.loaded) return;
+      exit.dataset.loaded = "1";
+      exit.src = src(clip.exit);
+      exit.preload = "auto";
+    };
+
+    /** The clip is downloaded to its end (and playable). */
+    const isFull = (v: HTMLVideoElement) =>
+      v.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA &&
+      Number.isFinite(v.duration) &&
+      v.buffered.length > 0 &&
+      v.buffered.end(v.buffered.length - 1) >= v.duration - 0.05;
+    const FULL_EVENTS = ["progress", "canplaythrough", "loadeddata"] as const;
+    /** Run `cb` once the clip is fully downloaded (or after `timeoutMs`). Returns a canceller. */
+    const onFull = (v: HTMLVideoElement, cb: () => void, timeoutMs = 0) => {
+      let done = false;
+      const stop = () => {
+        done = true;
+        FULL_EVENTS.forEach((e) => v.removeEventListener(e, check));
+        window.clearTimeout(t);
+      };
+      const go = () => {
+        if (done) return;
+        stop();
+        cb();
+      };
+      const check = () => isFull(v) && go();
+      const t = timeoutMs ? window.setTimeout(go, timeoutMs) : 0;
+      if (isFull(v)) go();
+      else FULL_EVENTS.forEach((e) => v.addEventListener(e, check));
+      return stop;
     };
 
     const place = (id: string) => {
@@ -112,6 +145,44 @@ export default function ServicesSection() {
       gsap.set([enter, exit], { x: p.x, y: p.y, scale: p.scale, width: clip.meta.width, height: clip.meta.height });
     };
 
+    /** Flight speed. Set right before each play: loading a source resets the rate. */
+    const speed = (v: HTMLVideoElement) => {
+      v.defaultPlaybackRate = T.playbackRate;
+      v.playbackRate = T.playbackRate;
+    };
+
+    /**
+     * Run `cb` once the video has a NEW frame on screen — after a seek or a play
+     * start. Showing a video before that can flash the frame it last held (a
+     * perched bird before its entrance), or nothing at all if it isn't decoded yet.
+     */
+    const onFrame = (v: HTMLVideoElement, cb: () => void) => {
+      // (typed as always present, but older browsers lack it → "playing" fallback)
+      const rvfc = (v as Partial<Pick<HTMLVideoElement, "requestVideoFrameCallback">>).requestVideoFrameCallback;
+      if (rvfc) rvfc.call(v, () => cb());
+      else v.addEventListener("playing", () => cb(), { once: true });
+    };
+    /**
+     * Run `cb` once the clip can play to its end without stalling (or after a
+     * safety timeout). A flight that starts before that freezes mid-air on slow
+     * connections; waiting just means the bird sets off a moment later.
+     * Stale calls (another flight started since) are dropped via `token`.
+     */
+    const whenReady = (v: HTMLVideoElement, token: number, cb: () => void) => {
+      // "canplaythrough" is only the browser's estimate (Chrome fires it early on
+      // slow links), so wait for the clip to be downloaded to its end. The clips
+      // are small and start buffering during the hover delay.
+      onFull(v, () => token === seq && cb(), T.readyTimeoutMs);
+    };
+    /** Rewind (only if needed — a redundant seek can blank a frame in Safari). */
+    const rewind = (v: HTMLVideoElement) => {
+      if (v.currentTime > 0.001) v.currentTime = 0;
+    };
+    /** Bumped whenever a flight starts or the section unmounts: stale callbacks bail. */
+    let seq = 0;
+    /** The entering bird is actually on screen yet (its first frame has painted). */
+    let shown = false;
+
     /** Visible-but-transparent: Firefox only decodes videos it considers visible. */
     const stage = (v: HTMLVideoElement) => gsap.set(v, { visibility: "visible", opacity: 0 });
 
@@ -125,6 +196,9 @@ export default function ServicesSection() {
 
     // ---------------------------------------------------------- state machine
     function reconcile() {
+      // An entrance that hasn't painted its first frame yet (still loading) is
+      // simply cancelled if that bird is no longer wanted — nothing was seen.
+      if (phase === "entering" && !shown && want !== current) return cancelEnter();
       if (phase === "entering" || phase === "exiting") return; // let the flight finish
       if (phase === "perched" && want !== current) return startExit();
       if (phase === "idle" && want) startEnter(want);
@@ -137,19 +211,52 @@ export default function ServicesSection() {
       place(id);
       current = id;
       phase = "entering";
+      shown = false;
+      const token = ++seq;
       gsap.killTweensOf([enterV, exitV]);
       if (clip.exit) {
         stage(exitV);
-        exitV.currentTime = 0; // first take-off frame ready for the hand-off
+        rewind(exitV); // first take-off frame ready for the hand-off
       }
+      stage(enterV); // decoding, but transparent until its first frame paints
       if (reduce) {
         enterV.currentTime = Math.max(0, clip.meta.duration - 0.05);
-        gsap.to(enterV, { autoAlpha: 1, duration: 0.4, onComplete: onEntered });
+        const show = () => {
+          if (token !== seq) return;
+          shown = true;
+          gsap.to(enterV, { autoAlpha: 1, duration: 0.4, onComplete: onEntered });
+        };
+        if (enterV.seeking) enterV.addEventListener("seeked", show, { once: true });
+        else show();
         return;
       }
-      enterV.currentTime = 0;
-      gsap.set(enterV, { autoAlpha: 1 });
-      enterV.play().catch(() => {});
+      rewind(enterV);
+      whenReady(enterV, token, () => {
+        if (phase !== "entering" || current !== id) return;
+        speed(enterV);
+        onFrame(enterV, () => {
+          if (token !== seq || phase !== "entering" || current !== id) return;
+          shown = true;
+          gsap.set(enterV, { autoAlpha: 1 });
+        });
+        enterV.play().catch(() => {});
+      });
+    }
+
+    function cancelEnter() {
+      const { enter: enterV, exit: exitV } = P(current!);
+      seq++;
+      enterV.pause();
+      gsap.killTweensOf([enterV, exitV]);
+      gsap.set([enterV, exitV], { autoAlpha: 0 });
+      rewind(enterV);
+      if (lingering === current) {
+        setRow(lingering, false);
+        lingering = null;
+      }
+      current = null;
+      phase = "idle";
+      reconcile();
     }
 
     function onEntered() {
@@ -167,19 +274,36 @@ export default function ServicesSection() {
         gsap.to(enterV, { autoAlpha: 0, duration: T.fade, ease: "power1.out", onComplete: onExited });
         return;
       }
-      // Take-off: the first exit frame is the same perched pose — overlap briefly.
-      exitV.currentTime = 0;
-      gsap.to(exitV, { opacity: 1, duration: T.handoff, ease: "none" });
-      gsap.to(enterV, { autoAlpha: 0, duration: T.handoff, ease: "none", delay: T.handoff * 0.5 });
-      // Last moments of the flight: fade, so nothing can linger at a clip edge.
-      if (Number.isFinite(exitV.duration)) {
-        gsap.to(exitV, {
-          opacity: 0,
-          duration: T.exitTailFade,
-          ease: "none",
-          delay: Math.max(T.handoff, exitV.duration - T.exitTailFade),
-        });
-      }
+      // Take-off: the first exit frame is the same perched pose. The perched bird
+      // stays fully visible until the exit's first frame has actually painted —
+      // only then do they cross over, so the bird can never blink out.
+      const token = ++seq;
+      loadExit(clip); // normally already in; needed now if the visit was short
+      stage(exitV);
+      rewind(exitV);
+      // The bird stays perched until its take-off clip can play through.
+      whenReady(exitV, token, () => takeOff(token));
+    }
+
+    function takeOff(token: number) {
+      const { enter: enterV, exit: exitV } = P(current!);
+      speed(exitV);
+      onFrame(exitV, () => {
+        if (token !== seq || phase !== "exiting") return;
+        gsap.to(exitV, { opacity: 1, duration: T.handoff, ease: "none" });
+        gsap.to(enterV, { autoAlpha: 0, duration: T.handoff, ease: "none", delay: T.handoff * 0.5 });
+        // Last moments of the flight: fade, so nothing can linger at a clip edge
+        // (timed from now, the real start, in real time at the playback rate).
+        if (Number.isFinite(exitV.duration)) {
+          const left = (exitV.duration - exitV.currentTime) / T.playbackRate;
+          gsap.to(exitV, {
+            opacity: 0,
+            duration: T.exitTailFade,
+            ease: "none",
+            delay: Math.max(T.handoff, left - T.exitTailFade),
+          });
+        }
+      });
       exitV.play().catch(() => onExited());
     }
 
@@ -190,6 +314,9 @@ export default function ServicesSection() {
       gsap.set([enterV, exitV], { autoAlpha: 0 });
       enterV.pause();
       exitV.pause();
+      // Rewind both while hidden, so the next visit starts on frame 0 at once.
+      rewind(enterV);
+      rewind(exitV);
       if (lingering === current) {
         setRow(lingering, false); // typography returns once the bird has left
         lingering = null;
@@ -287,6 +414,7 @@ export default function ServicesSection() {
     });
 
     return () => {
+      seq++;
       window.clearTimeout(timer);
       gsap.killTweensOf(allVideos);
       allVideos.forEach((v) => {

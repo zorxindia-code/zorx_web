@@ -1,0 +1,93 @@
+/*
+ * Clients — white logos on black, ONE horizontal row, seamless CSS loop.
+ * Imported by ClientsSection itself, so the layout always ships with the markup.
+ * Every logo is drawn at one shared scale (--u = CSS px per source px), so the
+ * relative sizes stay as designed on the sheet.
+ */
+.zorx-clients {
+  /* 0.052vw → logo sizes and gaps matched to the reference composition;
+     never larger than the logos' native pixels (1px). */
+  --u: clamp(0.36px, 0.052vw, 1px);
+  position: relative;
+  background: #000;
+  /* compact: the row sits close to the top of the black field */
+  padding-block: clamp(0.75rem, 1.5vw, 1.75rem) clamp(1.5rem, 4vw, 4rem);
+  overflow: hidden; /* the track is wider than the screen — never the page */
+}
+
+.zorx-clients-viewport {
+  overflow: hidden;
+  /* room for the hovered logo's scale-up, so it is never clipped */
+  padding-block: calc(var(--u) * 12);
+  /* logos fade in / out at the screen edges */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+}
+
+.zorx-clients-track {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  width: max-content;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  animation: zorx-clients-loop var(--clients-dur, 50s) linear infinite;
+  will-change: transform;
+}
+
+/* Spacing lives on each item (not `gap`), so one set is exactly half the track. */
+.zorx-clients-item {
+  flex: none;
+  display: block;
+  padding-inline-end: calc(var(--u) * 100);
+}
+
+.zorx-clients-logo {
+  display: block;
+  height: calc(var(--u) * var(--h));
+  width: auto;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  transform: scale(1);
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(0 0 0 rgb(233 245 255 / 0));
+}
+
+/* Focus on the logo under the pointer (or finger) — only that one. */
+.zorx-clients-item[data-focus] .zorx-clients-logo {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 14px rgb(233 245 255 / 0.28)); /* soft glow */
+}
+
+@keyframes zorx-clients-loop {
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* Reduced motion: still one row, but nothing moves by itself — the row can be
+   swiped / scrolled sideways instead, and the duplicate set is not needed. */
+@media (prefers-reduced-motion: reduce) {
+  .zorx-clients-viewport {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .zorx-clients-viewport::-webkit-scrollbar {
+    display: none;
+  }
+  .zorx-clients-track {
+    animation: none;
+    padding-inline: clamp(1rem, 9vw, 8rem);
+  }
+  .zorx-clients-item[data-copy] {
+    display: none;
+  }
+  .zorx-clients-logo {
+    transition: none;
+  }
+}

@@ -13,6 +13,7 @@ export interface Rig {
   frame: HTMLElement; // Ice Blue O field (square base, scaled)
   art: HTMLElement; // o.png
   loader: HTMLVideoElement; // the one bird video
+  loaderSun: HTMLElement; // sun ring around it (same box, moved in lockstep)
   bird: BirdController;
   z: HTMLElement;
   x: HTMLElement;
@@ -71,7 +72,7 @@ const vidBase = (rig: Rig) => () => rig.base().video;
 /** Initial state: full-screen white field, centred bird video. Nothing else is painted. */
 export function setInitialState(rig: Rig) {
   gsap.set(rig.frame, { ...now(field(rig, (L) => L.pre.frame)), backgroundColor: TUNING.introBg });
-  gsap.set(rig.loader, now(square(rig, (L) => L.pre.video, vidBase(rig))));
+  gsap.set([rig.loader, rig.loaderSun], now(square(rig, (L) => L.pre.video, vidBase(rig))));
   gsap.set(rig.art, now(square(rig, (L) => L.logo.art, artBase(rig))));
   gsap.set(rig.z, now(square(rig, (L) => L.pre.z, sqBase(rig))));
   gsap.set(rig.x, now(square(rig, (L) => L.pre.x, sqBase(rig))));
@@ -154,11 +155,15 @@ export function buildScrollExperience(rig: Rig) {
   // ---------------------------------------------------------------- B · grow
   tl.fromTo(rig.hint, { autoAlpha: 1 }, { autoAlpha: 0, duration: 30, ease: "power1.out" }, 0);
   tl.fromTo(
-    rig.loader,
+    [rig.loader, rig.loaderSun],
     square(rig, (L) => L.pre.video, vb),
     { ...square(rig, (L) => L.logo.video, vb), duration: S.grow, ease: "power2.inOut" },
     0,
   );
+
+  // The sun ring belongs to the loading state: it rides with the bird as it
+  // starts to grow and fades away well before the bird reaches the O.
+  tl.fromTo(rig.loaderSun, { autoAlpha: 1 }, { autoAlpha: 0, duration: S.grow * 0.35, ease: "power1.out" }, 0);
 
   // The background adapts with the bird: a square centred on the O, covering
   // the screen, shrinks by uniform scale to the O's artwork square — 1:1 the

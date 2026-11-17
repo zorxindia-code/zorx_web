@@ -89,7 +89,7 @@ Quality flags (opt-in; the Website clips use the original defaults): `--key line
 Current Branding clips: source `bird-videos/peacock.mp4` (portrait 1080×1920, 10 s, one take; the peacock lands in mid-air — there is no perch line in the footage, so the perch is set with `--line-y` where its toes grip):
 
 ```bash
-COMMON="--in public/videos/bird-videos/peacock.mp4 --crop 1080:1300:0:400 --width 720 --line-y 1208 \
+COMMON="--in public/videos/bird-videos/peacock.mp4 --crop 1080:1300:0:400 --width 720 --line-y 1196 \
   --key protect --protect-still --temporal --crf 31 --hevc-q 56 --alpha-quality 0.9"
 node scripts/process-bird-video.mjs $COMMON --name branding-bird      --start 0      --end 5.4583 --speedup 4.0:5.4167:2 --rest last
 node scripts/process-bird-video.mjs $COMMON --name branding-bird-exit --start 5.4167 --end 10                           --rest first

@@ -1,6 +1,8 @@
 import ZorxExperience from "@/components/zorx/ZorxExperience";
 import VisionSection from "@/components/vision/VisionSection";
 import ServicesSection from "@/components/services/ServicesSection";
+import ClientsSection from "@/components/clients/ClientsSection";
+import FeaturedWork from "@/components/work/FeaturedWork";
 
 export default function Home() {
   return (
@@ -8,6 +10,8 @@ export default function Home() {
       <ZorxExperience />
       <VisionSection />
       <ServicesSection />
+      <ClientsSection />
+      <FeaturedWork />
     </main>
   );
 }

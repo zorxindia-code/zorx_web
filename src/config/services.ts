@@ -65,7 +65,7 @@ export const SERVICES: readonly Service[] = [
     // one take, split on the same frame, 5.417 s): enter 0–5.458 s (fly in from the
     // left, land, settle facing forward — the settle at 2×), exit 5.417–10.0 s
     // (wings up, take off, fly left). No perch line in this footage: the perch is
-    // set where the toes grip (source y 1208). Crop 1080:1300:0:400, "protect" key
+    // set where the toes grip (source y 1196: outer toe tips on the divider, middle claws over it). Crop 1080:1300:0:400, "protect" key
     // with --protect-still (keeps the green tail, no green fringes on fast wings).
     bird: {
       id: "branding",
@@ -99,7 +99,9 @@ export const SERVICES: readonly Service[] = [
     bird: {
       id: "production",
       side: "left", // owl: enters from the left, leaves to the left
-      size: 1.3, // owls read larger than the woodpecker; still clamped clear of the text
+      // 1.04 × the shared 0.775 rule = the owl's original rendered size (1.3 × 0.62):
+      // it stays at its normal size while the other birds are 1.25× larger.
+      size: 1.04,
       enter: { webm: "/videos/bird/production.webm", hevc: "/videos/bird/production-hevc.mp4" },
       exit: { webm: "/videos/bird/production-exit.webm", hevc: "/videos/bird/production-exit-hevc.mp4" },
       meta: productionMeta,
@@ -133,6 +135,10 @@ export const SERVICES_TUNING = {
    *  0.775 = 1.25 × the earlier 0.62 — every bird (enter and exit share one
    *  placement) 25% larger; the text / tail / section clamps still apply. */
   birdHeightOfRow: 0.775,
+  /** Longest wait for a clip to be playable without stalling before it starts anyway (ms). */
+  readyTimeoutMs: 8000,
+  /** Playback speed of every entrance and exit flight (1 = as filmed). */
+  playbackRate: 1.35,
   /** Bird never smaller than this (px above the line), even on tight layouts. */
   minBirdHeight: 34,
   /** Fade used only when a bird has no exit clip, or with reduced motion (s). */

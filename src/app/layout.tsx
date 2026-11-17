@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Jost } from "next/font/google";
 import "./globals.css";
+import { BirdCursor } from "@/components/ui/BirdCursor";
 
 /** Geometric sans closest to the official lockup's tagline lettering. */
 const tagline = Jost({
@@ -23,7 +24,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${tagline.variable} antialiased`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <BirdCursor />
+      </body>
     </html>
   );
 }

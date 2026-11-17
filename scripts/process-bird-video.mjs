@@ -64,6 +64,10 @@ const FEATHER_TOP = Number(args["feather-top"] ?? 0);
 //                  and recovered edge colours near them may stay green
 const KEY = args.key === "linear" || args.key === "protect" ? args.key : "dominance";
 const FEATHER_BOTTOM = Number(args["feather-bottom"] ?? 0);
+// --feather-right N  soft fade over the last N crop columns — for a bird whose wing
+//                    or tail runs into the source frame's right edge, so it fades
+//                    instead of being cut by a straight edge
+const FEATHER_RIGHT = Number(args["feather-right"] ?? 0);
 const MAX_SHIFT = Number(args["max-shift"] ?? 25);
 const TEMPORAL = "temporal" in args;
 const STABILIZE = "stabilize" in args;
@@ -372,6 +376,14 @@ frames.forEach((rgb, f) => {
         out[q] = Math.round(out[q] * k * k * (3 - 2 * k));
       }
     }
+  }
+  if (FEATHER_RIGHT > 0) {
+    for (let y = 0; y < CH; y++)
+      for (let x = Math.max(0, CW - FEATHER_RIGHT); x < CW; x++) {
+        const k = (CW - 1 - x) / FEATHER_RIGHT;
+        const q = o + (y * CW + x) * 4 + 3;
+        out[q] = Math.round(out[q] * k * k * (3 - 2 * k));
+      }
   }
   if (FEATHER_BOTTOM > 0) {
     for (let y = Math.max(0, CH - FEATHER_BOTTOM); y < CH; y++) {
