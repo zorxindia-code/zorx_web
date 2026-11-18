@@ -4,17 +4,11 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { SERVICES, SERVICES_TUNING as T, type BirdClip, type ClipSources } from "@/config/services";
 import { placeBird } from "@/lib/services/placement";
+import { createGrip } from "@/lib/services/grip";
+import { prefersHevcAlpha } from "@/lib/videoSupport";
 import { BirdAnimation } from "./BirdAnimation";
 import { ServiceRow } from "./ServiceRow";
 import { servicesFont } from "./font";
-
-/** Safari / any iOS browser: VP9 alpha isn't supported, HEVC alpha is. */
-function prefersHevcAlpha() {
-  const ua = navigator.userAgent;
-  const ios = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-  const safari = /AppleWebKit/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Android|Firefox|FxiOS/.test(ua);
-  return ios || safari;
-}
 
 type Phase = "idle" | "entering" | "perched" | "exiting";
 
@@ -61,6 +55,15 @@ export default function ServicesSection() {
     const allVideos = [...pairs.values()].flatMap((p) => [p.enter, p.exit]);
     const P = (id: string) => pairs.get(id)!;
     gsap.set(allVideos, { autoAlpha: 0 });
+
+    // Grip lines: the divider redrawn over a bird's own tail and cut away behind
+    // its toes, frame by frame (BirdGrip, lib/services/grip). place() sizes it.
+    const grips = new Map<string, { el: HTMLElement; ctl: ReturnType<typeof createGrip> }>();
+    root.querySelectorAll<HTMLElement>("[data-grip]").forEach((el) => {
+      const grip = clipOf(el.dataset.grip!)?.grip;
+      if (grip) grips.set(el.dataset.grip!, { el, ctl: createGrip(el, grip) });
+    });
+    const gripOf = (id: string | null) => (id ? (grips.get(id) ?? null) : null);
 
     // ---------------------------------------------------------- bird helpers
     /** First use of a bird: give its pair sources (fetched once, kept buffered). */
@@ -122,13 +125,14 @@ export default function ServicesSection() {
       };
       const t = text(row);
       const n = text(next);
+      // Centre of the 1px divider below the row: the next row's top border, or
+      // for the last row its own bottom border.
+      const dividerY = next ? r.bottom - sec.top + 0.5 : r.bottom - sec.top - 0.5;
       const p = placeBird(
         clip.meta,
         {
           width: sec.width,
-          // Centre of the 1px divider below the row: the next row's top border, or
-          // for the last row its own bottom border.
-          dividerY: next ? r.bottom - sec.top + 0.5 : r.bottom - sec.top - 0.5,
+          dividerY,
           rowHeight: r.height,
           textLeft: t.l,
           textRight: t.r,
@@ -140,9 +144,18 @@ export default function ServicesSection() {
         },
         clip.side,
         clip.size,
+        clip.grip?.perchY,
       );
       const { enter, exit } = P(id);
       gsap.set([enter, exit], { x: p.x, y: p.y, scale: p.scale, width: clip.meta.width, height: clip.meta.height });
+      const g = gripOf(id)?.el;
+      if (g && clip.grip) {
+        // left/top (not a transform): the 1px line snaps to the divider's own pixel row
+        const [s0, s1] = clip.grip.span;
+        g.style.left = `${p.x + s0 * p.scale}px`;
+        g.style.top = `${dividerY - 0.5}px`;
+        g.style.width = `${(s1 - s0) * p.scale}px`;
+      }
     };
 
     /** Flight speed. Set right before each play: loading a source resets the rate. */
@@ -213,7 +226,12 @@ export default function ServicesSection() {
       phase = "entering";
       shown = false;
       const token = ++seq;
+      const grip = gripOf(id);
       gsap.killTweensOf([enterV, exitV]);
+      if (grip) {
+        gsap.killTweensOf(grip.el);
+        grip.ctl.hide();
+      }
       if (clip.exit) {
         stage(exitV);
         rewind(exitV); // first take-off frame ready for the hand-off
@@ -225,6 +243,10 @@ export default function ServicesSection() {
           if (token !== seq) return;
           shown = true;
           gsap.to(enterV, { autoAlpha: 1, duration: 0.4, onComplete: onEntered });
+          if (grip) {
+            grip.ctl.hold("enter", grip.ctl.last("enter")); // perched pose
+            gsap.fromTo(grip.el, { opacity: 0 }, { opacity: 1, duration: 0.4 });
+          }
         };
         if (enterV.seeking) enterV.addEventListener("seeked", show, { once: true });
         else show();
@@ -238,6 +260,9 @@ export default function ServicesSection() {
           if (token !== seq || phase !== "entering" || current !== id) return;
           shown = true;
           gsap.set(enterV, { autoAlpha: 1 });
+          // The divider follows the landing frame by frame: in front of the
+          // train as the bird comes down, behind each toe as it grips.
+          grip?.ctl.follow(enterV, "enter");
         });
         enterV.play().catch(() => {});
       });
@@ -245,10 +270,15 @@ export default function ServicesSection() {
 
     function cancelEnter() {
       const { enter: enterV, exit: exitV } = P(current!);
+      const grip = gripOf(current);
       seq++;
       enterV.pause();
       gsap.killTweensOf([enterV, exitV]);
       gsap.set([enterV, exitV], { autoAlpha: 0 });
+      if (grip) {
+        gsap.killTweensOf(grip.el);
+        grip.ctl.hide();
+      }
       rewind(enterV);
       if (lingering === current) {
         setRow(lingering, false);
@@ -262,16 +292,20 @@ export default function ServicesSection() {
     function onEntered() {
       if (phase !== "entering") return;
       phase = "perched";
+      const grip = gripOf(current);
+      if (grip && !reduce) grip.ctl.hold("enter", grip.ctl.last("enter")); // perched: the resting grip
       reconcile();
     }
 
     function startExit() {
       const clip = clipOf(current);
       const { enter: enterV, exit: exitV } = P(current!);
+      const grip = gripOf(current);
       phase = "exiting";
       gsap.killTweensOf([enterV, exitV]);
       if (!clip?.exit || reduce) {
         gsap.to(enterV, { autoAlpha: 0, duration: T.fade, ease: "power1.out", onComplete: onExited });
+        if (grip) gsap.to(grip.el, { opacity: 0, duration: T.fade, ease: "power1.out" });
         return;
       }
       // Take-off: the first exit frame is the same perched pose. The perched bird
@@ -287,10 +321,14 @@ export default function ServicesSection() {
 
     function takeOff(token: number) {
       const { enter: enterV, exit: exitV } = P(current!);
+      const grip = gripOf(current);
       speed(exitV);
       onFrame(exitV, () => {
         if (token !== seq || phase !== "exiting") return;
         gsap.to(exitV, { opacity: 1, duration: T.handoff, ease: "none" });
+        // The divider follows the take-off frame by frame: behind the toes until
+        // they push off it, then back behind the departing bird.
+        grip?.ctl.follow(exitV, "exit");
         gsap.to(enterV, { autoAlpha: 0, duration: T.handoff, ease: "none", delay: T.handoff * 0.5 });
         // Last moments of the flight: fade, so nothing can linger at a clip edge
         // (timed from now, the real start, in real time at the playback rate).
@@ -310,8 +348,13 @@ export default function ServicesSection() {
     function onExited() {
       if (phase !== "exiting") return;
       const { enter: enterV, exit: exitV } = P(current!);
+      const grip = gripOf(current);
       gsap.killTweensOf([enterV, exitV]);
       gsap.set([enterV, exitV], { autoAlpha: 0 });
+      if (grip) {
+        gsap.killTweensOf(grip.el);
+        grip.ctl.hide();
+      }
       enterV.pause();
       exitV.pause();
       // Rewind both while hidden, so the next visit starts on frame 0 at once.
@@ -416,7 +459,8 @@ export default function ServicesSection() {
     return () => {
       seq++;
       window.clearTimeout(timer);
-      gsap.killTweensOf(allVideos);
+      gsap.killTweensOf([...allVideos, ...[...grips.values()].map((g) => g.el)]);
+      grips.forEach((g) => g.ctl.hide());
       allVideos.forEach((v) => {
         v.pause();
         v.removeEventListener("ended", onEnded);

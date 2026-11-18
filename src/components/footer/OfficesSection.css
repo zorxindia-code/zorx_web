@@ -1,0 +1,199 @@
+/*
+ * Footer part 2 (see OfficesSection.tsx): on the same black as the courtship
+ * section above, aligned to its frame (8.2vw side margins). Desktop: two
+ * narrow contact columns, the map taking the rest; tablet: columns side by
+ * side over a full-width map; phone: everything stacked.
+ */
+.zorx-offices {
+  background: #000;
+  color: #fff;
+  font-family: var(--font-services), ui-sans-serif, system-ui, sans-serif;
+  padding: 0 max(1.25rem, 8.2vw) clamp(3.5rem, 7vw, 7rem);
+}
+
+.zorx-offices-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.35fr);
+  column-gap: clamp(1.5rem, 3.2vw, 3.5rem);
+  row-gap: clamp(2rem, 4vw, 3rem);
+  align-items: start;
+}
+
+/* ----------------------------------------------------------- columns */
+.zorx-office {
+  font-style: normal;
+  font-size: clamp(0.82rem, 1.02vw, 1rem);
+  line-height: 1.6;
+  color: #fff;
+  min-width: 0;
+}
+.zorx-office[data-office="india"] {
+  color: #8b9097; /* the secondary column, muted */
+}
+.zorx-office-heading {
+  margin: 0 0 clamp(0.9rem, 1.6vw, 1.4rem);
+  font-size: clamp(0.78rem, 1.02vw, 0.98rem);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.zorx-office-address {
+  margin: 0 0 1.1em;
+}
+.zorx-office-address span {
+  display: block;
+}
+.zorx-office-country {
+  margin: 0 0 0.35em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.zorx-office-link {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+  transition: background-size 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.zorx-office-link:hover,
+.zorx-office-link:focus-visible {
+  background-size: 100% 1px;
+}
+.zorx-office-link:focus-visible {
+  outline: 1px solid var(--zorx-ice);
+  outline-offset: 3px;
+}
+
+/* ----------------------------------------------------------- map */
+/*
+ * The artwork (1037 × 780), never cropped or distorted: the traced seas as an
+ * image, the live layer (markers, flying bird) as an SVG in the same units on
+ * top. It is a size container so the tap bird can be sized in map units (cqw).
+ */
+.zorx-map {
+  --map-red: #f2353b;
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1037 / 780;
+  background: #fff;
+  container-type: inline-size;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.zorx-map-image,
+.zorx-map-overlay {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.zorx-map-overlay {
+  overflow: hidden;
+}
+.zorx-map-pin-ring {
+  fill: #fff;
+  stroke: var(--map-red);
+}
+.zorx-map-pin-dot {
+  fill: var(--map-red);
+}
+.zorx-map-pin-pulse {
+  fill: none;
+  stroke: var(--map-red);
+  stroke-width: 1.2;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.zorx-map[data-playing] .zorx-map-pin-pulse {
+  animation: zorx-pin-pulse 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.zorx-map[data-playing] .zorx-map-pin-pulse-late {
+  animation-delay: 1.4s;
+}
+@keyframes zorx-pin-pulse {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.5);
+  }
+}
+.zorx-map-flight,
+.zorx-map-rest {
+  fill: #000;
+}
+.zorx-map-rest {
+  display: none; /* shown instead of the flight with reduced motion */
+}
+
+/* Touch: one loop round the tapped marker, at the map's own bird scale. */
+.zorx-map-tapbird {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.zorx-map-tapbird svg {
+  position: absolute;
+  left: calc(var(--bx) / 1037 * 100cqw);
+  top: calc(var(--by) / 1037 * 100cqw);
+  width: calc(var(--bw) / 1037 * 100cqw);
+  height: calc(var(--bh) / 1037 * 100cqw);
+  overflow: visible;
+  fill: #000;
+}
+.zorx-map-tapbird[data-orbit] {
+  animation: zorx-map-circle var(--orbit-s, 2.1s) cubic-bezier(0.45, 0, 0.55, 1) both;
+}
+@keyframes zorx-map-circle {
+  0% {
+    opacity: 0;
+    transform: rotate(-90deg) translateX(var(--orbit-r, 6.2cqw)) rotate(90deg);
+  }
+  14%,
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(270deg) translateX(var(--orbit-r, 6.2cqw)) rotate(90deg);
+  }
+}
+
+/* ----------------------------------------------------------- responsive */
+@media (max-width: 960px) {
+  .zorx-offices-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .zorx-map {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 560px) {
+  .zorx-offices-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zorx-office-link {
+    transition: none;
+  }
+  .zorx-map-flight {
+    display: none;
+  }
+  .zorx-map-rest {
+    display: inline;
+  }
+}

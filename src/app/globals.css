@@ -110,15 +110,20 @@ html.zorx-locked body {
   display: grid;
 }
 
-/* Normal website loading indicator — small static white bird inside the
- * slowly turning sun ring (see LoadingIndicator). Fixed-size box: no layout shift. */
+/*
+ * The ZORX loader (see LoadingIndicator): the stationary bird, and the sun
+ * spinning about its own centre around it — one steady, linear 360° per
+ * cycle (seamless: 360° = 0°). Fixed-size box: no layout shift. Fades in
+ * after 150 ms, so an instant load never flashes it.
+ */
 .zorx-loading {
   position: relative;
   display: inline-grid;
   place-items: center;
   flex: none;
+  animation: zorx-loading-in 0.3s ease 0.15s both;
 }
-.zorx-loading-indicator {
+.zorx-loading-logo {
   position: relative;
   display: block;
   height: auto;
@@ -130,19 +135,23 @@ html.zorx-locked body {
   left: var(--sun-x);
   top: var(--sun-y);
   width: var(--sun-w);
-  height: var(--sun-h);
+  height: auto;
   max-width: none;
-  transform-origin: var(--sun-ox) var(--sun-oy);
+  transform-origin: 49.574% 49.578%; /* the ring's centre (116.5, 117.5 of 235×237) */
   user-select: none;
   pointer-events: none;
   will-change: transform;
-  animation: zorx-sun-turn 9s linear infinite;
+  animation: zorx-sun-spin 1.4s linear infinite;
 }
 .zorx-loading-sun-invert {
-  filter: invert(1); /* black ink → white, matching the white bird on black */
+  filter: invert(1); /* black ink → white on the black grounds */
 }
-@keyframes zorx-sun-turn {
+@keyframes zorx-sun-spin {
   to { transform: rotate(360deg); }
+}
+@keyframes zorx-loading-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .zorx-loading-sun { animation: none; will-change: auto; }
@@ -207,14 +216,15 @@ html.zorx-locked body {
   will-change: transform;
 }
 /*
- * Sun ring around the intro bird. Same box as .zorx-loader (and the timeline
- * moves both together); the ring is drawn larger than the box, centred on the
- * bird (which spans 7.5–91 % × 29–68 % of the video frame → centre 49.25 %, 48.5 %).
- * Black ink as supplied — it sits on the white / Ice Blue field like the bird.
+ * The loading sun around the intro bird — spinning for the whole intro
+ * loading phase, from the first frame until loading completes and scrolling
+ * unlocks (.zorx-stage[data-ready]); then it fades out and stays gone. Same box
+ * as .zorx-loader (positioned with it); the bird video is the stationary logo,
+ * only the sun turns. An animation, not a transition: the stage is re-parented
+ * into its scroll pin at ready, which would cancel a transition.
  */
-.zorx-loader-sun {
+.zorx-loader-ring {
   --v: clamp(60px, 9cqmin, 90px);
-  --ring: 130%; /* ring box ÷ video box: inner edge clears the wing tips */
   position: absolute;
   left: calc(50% - var(--v) / 2);
   top: calc(50% - var(--v) / 2);
@@ -223,16 +233,22 @@ html.zorx-locked body {
   transform-origin: 0 0;
   z-index: 12;
   pointer-events: none;
-  will-change: transform, opacity;
 }
-.zorx-loader-sun .zorx-loader-sun-ring {
-  /* ring centre (116.5, 117.5 of 235×237) placed on the bird centre */
-  --sun-w: var(--ring);
-  --sun-h: auto;
-  --sun-x: calc(49.25% - var(--ring) * 0.49574);
-  --sun-y: calc(48.5% - var(--ring) * 0.5);
-  --sun-ox: 49.574%;
-  --sun-oy: 49.578%;
+/* The sun (black ink, as supplied, on the white field), drawn larger than the
+   video box and centred on the bird (49.25 %, 48.5 % of the frame): its inner
+   edge clears the wing tips. The bird video itself is the stationary logo. */
+.zorx-loader-ring .zorx-loading-sun {
+  --ring: 130%;
+  left: calc(49.25% - var(--ring) * 0.49574);
+  top: calc(48.5% - var(--ring) * 0.5);
+  width: var(--ring);
+}
+.zorx-stage[data-ready] .zorx-loader-ring {
+  animation: zorx-ring-out 0.35s ease forwards;
+}
+@keyframes zorx-ring-out {
+  from { opacity: 1; visibility: visible; }
+  to { opacity: 0; visibility: hidden; }
 }
 
 /* Never let the browser draw its own play button over the bird (e.g. when
@@ -491,6 +507,19 @@ html.zorx-locked body {
   pointer-events: none;
   visibility: hidden;
   will-change: transform, opacity;
+}
+/* The divider over the peacock's own train, behind its toes (BirdGrip):
+   positioned on the divider's exact pixel row; the cut-outs are a mask. */
+.zorx-service-grip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 1px;
+  z-index: 3;
+  background: var(--zorx-black);
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
 }
 @media (prefers-reduced-motion: reduce) {
   .zorx-service-label { transition: none; }

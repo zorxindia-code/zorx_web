@@ -12,6 +12,8 @@
  *   4. erases a fixed watermark box, if given
  *   5. encodes VP9-alpha WebM (Chrome/Firefox/Edge) and HEVC-alpha MP4
  *      (Safari/iOS), and writes placement metadata (perch line, feet, bounds)
+ *   Optional: a pale perch wire at known rows (--line-band), a seamless
+ *   dissolve loop (--loop-xfade) and a still poster (--poster).
  *
  * Requires ffmpeg with libvpx-vp9 and hevc_videotoolbox (macOS).
  *
@@ -22,6 +24,12 @@
  *   Exit (take-off) clip, same crop so both share one coordinate system:
  *   node scripts/process-bird-video.mjs --in … --name website-exit --start 6.792 --end 9 \
  *     --crop 1240:980:680:60 --width 720 --erase 1696:856:86:86 --rest first
+ *   Contact section — three Blue Manakins on a pale wire, looping courtship:
+ *   node scripts/process-bird-video.mjs --in public/videos/bird-videos/bird-dancing-video.mp4 \
+ *     --name manakins --out public/videos/contact --end 7 --crop 1720:926:132:26 --width 960 \
+ *     --key linear --screen-d 95 --temporal --line-y 847 --line-band 838:856 \
+ *     --erase 1696:856:86:86,132:806:334:146,1760:806:92:146 --loop-xfade 14 --loop-slots 796,1130 --loop-dissolve 6 \
+ *     --rest first --poster
  */
 import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -43,7 +51,8 @@ const CH = SRC_CH + Number(args["pad-bottom"] ?? 0); // working canvas height (c
 const CUT_Y = SRC_CH - 1; // last row that came from the source
 const OUT_W = Number(args.width ?? 720);
 const OUT_DIR = args.out ?? "public/videos/bird";
-const ERASE = args.erase ? args.erase.split(":").map(Number) : null; // x:y:w:h in source px
+// x:y:w:h in source px; several boxes separated by commas
+const ERASE = args.erase ? args.erase.split(",").map((box) => box.split(":").map(Number)) : null;
 const FPS = Number(args.fps ?? 24);
 // Which frame is the resting (perched) pose: "last" for an entrance clip,
 // "first" for an exit clip that takes off from the perch.
@@ -89,6 +98,29 @@ const TAIL_FEATHER = Number(args["tail-feather"] ?? 40);
 //                  dark green, which the protect key would keep as plumage), saturated
 //                  pixels are bird crossing it; fill is premultiplied
 const LINE_GREEN = "line-green" in args;
+// --line-band Y0:Y1  a light (pale) perch wire at known rows, in source px — the
+//                    dark-line detector can't see it. In the band, green-tinted
+//                    pixels are wire or backdrop (removed; rebuilt across, premultiplied,
+//                    where the bird is on both sides — feet gripping it, a tail hanging
+//                    through it); clearly non-green, solid pixels are bird (claws).
+const LINE_BAND = args["line-band"] ? args["line-band"].split(":").map((v) => Number(v) - CY) : null;
+// --loop-xfade N     seamless loop for footage whose last pose doesn't match its
+//                    first: the clip starts at frame N and its last N frames dissolve
+//                    (premultiplied) into source frames 0…N-1, which lead into frame N.
+const LOOP_XFADE = Number(args["loop-xfade"] ?? 0);
+// --poster           also write NAME-poster.webp: the first output frame, with alpha
+//                    (shown before the clip loads and with reduced motion)
+const POSTER = "poster" in args;
+// --loop-slots X1,X2,…  with --loop-xfade: birds sitting side by side (source px
+//                    boundaries between them) dissolve one after another, each over
+//                    --loop-dissolve frames (default 6), so each reads as a quick head
+//                    turn of its own instead of one slow, synchronised ghost
+const LOOP_SLOTS = args["loop-slots"] ? args["loop-slots"].split(",").map((v) => Number(v) - CX) : [];
+const LOOP_DISSOLVE = Number(args["loop-dissolve"] ?? 6);
+// --screen-d D       linear / protect keys: backdrop samples are pixels at least this
+//                    green-dominant (g − max(r, b)). Default 150 suits a saturated
+//                    screen; a paler one (≈ 115) needs lower, or no sample is found.
+const SCREEN_D = Number(args["screen-d"] ?? 150);
 // --line-y Y       footage with no perch line (the bird lands in mid-air): the perch
 //                  height in source px — where the feet grip — used as the line for
 //                  placement; nothing is detected or removed
@@ -196,7 +228,7 @@ function lineBand(rgb) {
   return { top: line[0] - pad, bottom: line[line.length - 1] + pad, centre: (line[0] + line[line.length - 1]) / 2 };
 }
 
-const out = Buffer.alloc(frames.length * CW * CH * 4);
+let out = Buffer.alloc(frames.length * CW * CH * 4);
 const meta = [];
 
 let prevRgb = null;
@@ -210,8 +242,9 @@ frames.forEach((rgb, f) => {
     const rs = [], gs = [], bs = [];
     for (let p = 0; p < CW * CH * 3; p += 3 * 997) {
       const d = rgb[p + 1] - Math.max(rgb[p], rgb[p + 2]);
-      if (d > 150) { rs.push(rgb[p]); gs.push(rgb[p + 1]); bs.push(rgb[p + 2]); }
+      if (d > SCREEN_D) { rs.push(rgb[p]); gs.push(rgb[p + 1]); bs.push(rgb[p + 2]); }
     }
+    if (rs.length < 20 && f === 0) console.warn(`warning: only ${rs.length} backdrop samples — lower --screen-d`);
     const med = (a) => (a.sort((x, y) => x - y), a[a.length >> 1] ?? 0);
     const G = [med(rs), med(gs), med(bs)];
     const dG = G[1] - Math.max(G[0], G[2]);
@@ -323,7 +356,11 @@ frames.forEach((rgb, f) => {
     }
   }
   // 2. remove the source perch line
-  const band = FIXED_LINE != null ? null : lineBand(rgb);
+  const band = LINE_BAND
+    ? { top: LINE_BAND[0], bottom: LINE_BAND[1], centre: (LINE_BAND[0] + LINE_BAND[1]) / 2, light: true }
+    : FIXED_LINE != null
+      ? null
+      : lineBand(rgb);
   if (band) {
     const yA = Math.max(0, band.top - 2);
     const yB = Math.min(CH - 1, band.bottom + 2);
@@ -337,6 +374,15 @@ frames.forEach((rgb, f) => {
         // dark or semi-transparent in the band is line or line edge.
         const lum = 0.299 * rgb[p] + 0.587 * rgb[p + 1] + 0.114 * rgb[p + 2];
         const t = (y - yA) / (yB - yA);
+        if (band.light) {
+          const r = rgb[p], g = rgb[p + 1], b = rgb[p + 2];
+          if (g - Math.max(r, b) < 35 && out[q + 3] >= 200) continue; // bird crossing the wire
+          const aa = out[ia + 3] * (1 - t), ab = out[ib + 3] * t, na = aa + ab;
+          if (out[ia + 3] < 128 || out[ib + 3] < 128 || na < 1) { out[q] = out[q + 1] = out[q + 2] = 130; out[q + 3] = 0; continue; }
+          for (let c = 0; c < 3; c++) out[q + c] = Math.round((out[ia + c] * aa + out[ib + c] * ab) / na);
+          out[q + 3] = Math.round(na);
+          continue;
+        }
         if (LINE_GREEN) {
           // Colour-aware: the line is neutral black fading out through dark green;
           // a saturated (blue / yellow) or bright solid pixel is bird crossing it.
@@ -363,9 +409,9 @@ frames.forEach((rgb, f) => {
   }
   // 3. watermark box
   if (ERASE) {
-    const [ex, ey, ew, eh] = ERASE;
-    for (let y = Math.max(0, ey - CY); y < Math.min(CH, ey - CY + eh); y++)
-      for (let x = Math.max(0, ex - CX); x < Math.min(CW, ex - CX + ew); x++) out[o + (y * CW + x) * 4 + 3] = 0;
+    for (const [ex, ey, ew, eh] of ERASE)
+      for (let y = Math.max(0, ey - CY); y < Math.min(CH, ey - CY + eh); y++)
+        for (let x = Math.max(0, ex - CX); x < Math.min(CW, ex - CX + ew); x++) out[o + (y * CW + x) * 4 + 3] = 0;
   }
   // 4. top feather
   if (FEATHER_TOP > 0) {
@@ -652,6 +698,55 @@ if (STABILIZE) {
   }
 }
 
+// 6. seamless loop: frames N… with the last N dissolving into frames 0…N-1
+if (LOOP_XFADE > 0) {
+  const N = LOOP_XFADE, T = frames.length, L = T - N, FS = CW * CH * 4;
+  const looped = Buffer.alloc(L * FS);
+  // Dissolve weight per column: one slot (the whole frame) over all N frames, or
+  // staggered slots of LOOP_DISSOLVE frames each, the last finishing on frame N-1.
+  const S = LOOP_SLOTS.length + 1;
+  const D = S > 1 ? Math.min(LOOP_DISSOLVE, N) : N + 2;
+  const slotOf = (x) => LOOP_SLOTS.filter((b) => x >= b).length;
+  const weight = (slot, k) => {
+    const off = S > 1 ? Math.round((slot * (N - D)) / (S - 1)) : -1;
+    const u = Math.min(1, Math.max(0, (k - off) / (D - 1)));
+    return u * u * (3 - 2 * u);
+  };
+  for (let i = 0; i < L; i++) {
+    const s = N + i, k = s - (T - N); // k ≥ 0: inside the dissolve
+    const so = s * FS, lo = i * FS;
+    if (k < 0) { out.copy(looped, lo, so, so + FS); continue; }
+    const bo = k * FS;
+    // per-column weight, eased across each slot boundary (±12 px, in the gap between birds)
+    const wx = new Float32Array(CW);
+    for (let x = 0; x < CW; x++) {
+      let w = weight(slotOf(x), k);
+      for (const b of LOOP_SLOTS) {
+        if (Math.abs(x - b) < 12) {
+          const t = (x - b + 12) / 24;
+          w = weight(slotOf(b - 1), k) * (1 - t) + weight(slotOf(b), k) * t;
+        }
+      }
+      wx[x] = w;
+    }
+    for (let q = 0; q < FS; q += 4) {
+      const w = wx[(q >> 2) % CW];
+      const aA = out[so + q + 3] * (1 - w), aB = out[bo + q + 3] * w, a = aA + aB;
+      if (a < 0.5) { looped[lo + q] = looped[lo + q + 1] = looped[lo + q + 2] = 130; looped[lo + q + 3] = 0; continue; }
+      for (let c = 0; c < 3; c++) looped[lo + q + c] = Math.round((out[so + q + c] * aA + out[bo + q + c] * aB) / a);
+      looped[lo + q + 3] = Math.round(a);
+    }
+  }
+  out = looped;
+  frames.length = L;
+  meta.splice(0, N);
+  console.log(
+    `loop: frames ${N}–${T - 1}, last ${N} dissolve into 0–${N - 1}` +
+      (S > 1 ? ` (${S} slots × ${D} frames, staggered)` : "") +
+      ` → ${L} frames (${(L / FPS).toFixed(2)} s)`,
+  );
+}
+
 // ---------------------------------------------------------------- placement metadata (resting pose)
 const last = REST === "first" ? 0 : frames.length - 1;
 const lo = last * CW * CH * 4;
@@ -714,6 +809,14 @@ const scale = `scale=${OUT_W}:${OUT_H}:flags=lanczos`;
 await enc(["-vf", `${scale},format=yuva420p`, "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-b:v", "0", "-crf", String(CRF), "-row-mt", "1", "-deadline", "good", "-auto-alt-ref", "0", "-an", join(OUT_DIR, `${NAME}.webm`)]);
 await enc(["-vf", `${scale},format=bgra`, "-c:v", "hevc_videotoolbox", "-alpha_quality", String(ALPHA_Q), "-q:v", String(HEVC_Q), "-tag:v", "hvc1", "-an", "-movflags", "+faststart", join(OUT_DIR, `${NAME}-hevc.mp4`)]);
 writeFileSync(join(OUT_DIR, `${NAME}.json`), JSON.stringify(placement, null, 2) + "\n");
+if (POSTER) {
+  const sharp = (await import("sharp")).default;
+  await sharp(out.subarray(0, CW * CH * 4), { raw: { width: CW, height: CH, channels: 4 } })
+    .resize(OUT_W, OUT_H)
+    .webp({ quality: 88, alphaQuality: 95, effort: 6 })
+    .toFile(join(OUT_DIR, `${NAME}-poster.webp`));
+  console.log(`wrote ${OUT_DIR}/${NAME}-poster.webp`);
+}
 const { unlinkSync } = await import("node:fs");
 if (!process.env.KEEP_RAW) unlinkSync(raw);
 console.log(`wrote ${OUT_DIR}/${NAME}.webm, ${NAME}-hevc.mp4, ${NAME}.json`);

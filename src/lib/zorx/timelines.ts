@@ -13,7 +13,7 @@ export interface Rig {
   frame: HTMLElement; // Ice Blue O field (square base, scaled)
   art: HTMLElement; // o.png
   loader: HTMLVideoElement; // the one bird video
-  loaderSun: HTMLElement; // sun ring around it (same box, moved in lockstep)
+  loaderRing: HTMLElement; // the ZORX loader around it (same box; shown only while assets load)
   bird: BirdController;
   z: HTMLElement;
   x: HTMLElement;
@@ -72,7 +72,7 @@ const vidBase = (rig: Rig) => () => rig.base().video;
 /** Initial state: full-screen white field, centred bird video. Nothing else is painted. */
 export function setInitialState(rig: Rig) {
   gsap.set(rig.frame, { ...now(field(rig, (L) => L.pre.frame)), backgroundColor: TUNING.introBg });
-  gsap.set([rig.loader, rig.loaderSun], now(square(rig, (L) => L.pre.video, vidBase(rig))));
+  gsap.set([rig.loader, rig.loaderRing], now(square(rig, (L) => L.pre.video, vidBase(rig))));
   gsap.set(rig.art, now(square(rig, (L) => L.logo.art, artBase(rig))));
   gsap.set(rig.z, now(square(rig, (L) => L.pre.z, sqBase(rig))));
   gsap.set(rig.x, now(square(rig, (L) => L.pre.x, sqBase(rig))));
@@ -87,8 +87,9 @@ export function setInitialState(rig: Rig) {
  *             and shifts to the artwork's Ice Blue
  *   settle    video is scrubbed to its last frame (= o.png's bird pose)
  *   handoff   o.png fades in over the pixel-aligned video bird
- *   zx        Z from the left and X from the right — one tween, identical motion,
- *             starting while the O is still settling and arriving as it completes
+ *   zx        Z from the left and X from the right — one tween, in lockstep with
+ *             the O forming (same start, duration and ease as grow): the three
+ *             squares complete in the same moment
  *   tagline   INTERACTIVE AGENCY settles (one text element)
  *   hold      the complete logo rests
  *   showreel  Z / X shrink outward, O grows into the reel frame, reel fades up
@@ -98,12 +99,14 @@ export function buildScrollExperience(rig: Rig) {
   const growEnd = S.grow;
   const settleEnd = growEnd + S.settle;
   const handoffEnd = settleEnd + S.handoff;
-  // Z and X arrive exactly as the O finishes settling (o.png fully in), so they
-  // start while the bird is still growing into the O.
-  const zxEnd = handoffEnd;
-  const zxStart = Math.max(0, zxEnd - S.zx);
-  const tagStart = zxEnd - S.taglineOverlap;
-  const holdStart = Math.max(zxEnd, tagStart + S.tagline);
+  // Z and X move in lockstep with the O forming: they set off with the first
+  // scroll and land exactly as the field becomes the O square. Same ease and
+  // span as the field, so they ride just outside its contracting edge (never
+  // over it) and close up to the O with the lockup's gap at the same instant.
+  const zxStart = 0;
+  const zxEnd = growEnd;
+  const tagStart = handoffEnd - S.taglineOverlap;
+  const holdStart = Math.max(handoffEnd, tagStart + S.tagline);
   const reelStart = holdStart + S.hold;
   const total = reelStart + S.showreel;
   const reelFadeAt = reelStart + S.showreel * 0.42;
@@ -155,15 +158,11 @@ export function buildScrollExperience(rig: Rig) {
   // ---------------------------------------------------------------- B · grow
   tl.fromTo(rig.hint, { autoAlpha: 1 }, { autoAlpha: 0, duration: 30, ease: "power1.out" }, 0);
   tl.fromTo(
-    [rig.loader, rig.loaderSun],
+    rig.loader,
     square(rig, (L) => L.pre.video, vb),
     { ...square(rig, (L) => L.logo.video, vb), duration: S.grow, ease: "power2.inOut" },
     0,
   );
-
-  // The sun ring belongs to the loading state: it rides with the bird as it
-  // starts to grow and fades away well before the bird reaches the O.
-  tl.fromTo(rig.loaderSun, { autoAlpha: 1 }, { autoAlpha: 0, duration: S.grow * 0.35, ease: "power1.out" }, 0);
 
   // The background adapts with the bird: a square centred on the O, covering
   // the screen, shrinks by uniform scale to the O's artwork square — 1:1 the
@@ -196,8 +195,8 @@ export function buildScrollExperience(rig: Rig) {
       x: (i: number) => (i ? rig.L().logo.x : rig.L().logo.z).x,
       y: (i: number) => (i ? rig.L().logo.x : rig.L().logo.z).y,
       scale: (i: number) => (i ? rig.L().logo.x : rig.L().logo.z).w / sb(),
-      duration: S.zx,
-      ease: "power3.out",
+      duration: zxEnd - zxStart,
+      ease: "power2.inOut", // = the O's grow
     },
     zxStart,
   );

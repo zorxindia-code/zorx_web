@@ -13,6 +13,7 @@ import websiteMeta from "../../public/videos/bird/website.json";
 import productionMeta from "../../public/videos/bird/production.json";
 import brandingMeta from "../../public/videos/bird/branding-bird.json";
 import marketingMeta from "../../public/videos/bird/marketing.json";
+import brandingGrip from "../../public/videos/bird/branding-bird-grip.json";
 
 export interface BirdPlacement {
   /** Video frame size (px). */
@@ -48,6 +49,29 @@ export interface BirdClip {
   exit: ClipSources | null;
   /** Placement of the enter clip (the exit clip shares its coordinates). */
   meta: BirdPlacement;
+  /** How the resting feet hold the divider, for a bird whose body hides it. */
+  grip?: BirdGrip;
+}
+
+/**
+ * A bird standing IN FRONT of its own tail (the peacock, filmed from the front):
+ * the divider runs behind the train, so on its own the line vanishes across the
+ * bird and the feet seem to float. While the bird is over its spot, a 1px
+ * segment of the divider is drawn over the train and cut away, frame by frame,
+ * exactly where the toes cross it — the feet come down onto the line, grip it
+ * (line behind the toes, claws below), and push off it.
+ * Measured from the clips by scripts/measure-bird-grip.mjs; clip px, clip frames.
+ */
+export interface BirdGrip {
+  fps: number;
+  /** Clip row set on the divider — toes curl over it, the claws hook below. */
+  perchY: number;
+  /** Extent of the drawn segment: [x0, x1] (covers the train in every active frame). */
+  span: readonly number[];
+  /** Entrance: line fades in over `fade` frames; `gaps[f]` = toe crossings in frame f. */
+  enter: { fade: readonly number[]; gaps: readonly (readonly (readonly number[])[])[] };
+  /** Take-off: same, line fades out over `fade` once the feet have left it. */
+  exit: { fade: readonly number[]; gaps: readonly (readonly (readonly number[])[])[] };
 }
 
 export interface Service {
@@ -65,8 +89,12 @@ export const SERVICES: readonly Service[] = [
     // one take, split on the same frame, 5.417 s): enter 0–5.458 s (fly in from the
     // left, land, settle facing forward — the settle at 2×), exit 5.417–10.0 s
     // (wings up, take off, fly left). No perch line in this footage: the perch is
-    // set where the toes grip (source y 1196: outer toe tips on the divider, middle claws over it). Crop 1080:1300:0:400, "protect" key
+    // set near the toes (source y 1196 — the size reference). Crop 1080:1300:0:400, "protect" key
     // with --protect-still (keeps the green tail, no green fringes on fast wings).
+    // Grip: the peacock stands in front of its train, which hides the divider, so
+    // the line is redrawn over the train behind its toes, frame by frame (BirdGrip,
+    // scripts/measure-bird-grip.mjs). At rest the line crosses all six toes near
+    // their tips at clip row 523.5 (source y 1185); the middle claws hook below it.
     bird: {
       id: "branding",
       side: "left", // peacock: enters from the left, leaves to the left
@@ -74,6 +102,7 @@ export const SERVICES: readonly Service[] = [
       enter: { webm: "/videos/bird/branding-bird.webm", hevc: "/videos/bird/branding-bird-hevc.mp4" },
       exit: { webm: "/videos/bird/branding-bird-exit.webm", hevc: "/videos/bird/branding-bird-exit-hevc.mp4" },
       meta: brandingMeta,
+      grip: brandingGrip,
     },
   },
   {

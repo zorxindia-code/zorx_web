@@ -33,12 +33,16 @@ export interface Placement {
  *    the whole tail stays inside the section
  *  - the video's outer edge stays beyond the section, so the bird enters and
  *    leaves from off-screen on its side
+ * `perchY` is the clip row set on the divider (default: the clip's perch line);
+ * size is always measured from the perch line, so a grip row moves the bird to
+ * its feet, never rescales it.
  */
 export function placeBird(
   m: BirdPlacement,
   p: PlacementInput,
   side: "left" | "right",
   size = 1,
+  perchY = m.lineY,
 ): Placement {
   const margin = Math.max(16, p.width * 0.05);
   const gap = Math.max(12, p.width * 0.025);
@@ -60,13 +64,13 @@ export function placeBird(
   }
   if (sText > 0) s = Math.min(s, sText);
   if (sTail > 0) s = Math.min(s, sTail);
-  if (p.floorY != null && m.bird.y1 > m.lineY) {
-    const sFloor = (p.floorY - p.dividerY) / (m.bird.y1 - m.lineY);
+  if (p.floorY != null && m.bird.y1 > perchY) {
+    const sFloor = (p.floorY - p.dividerY) / (m.bird.y1 - perchY);
     if (sFloor > 0) s = Math.min(s, sFloor);
   }
   s = Math.max(s, T.minBirdHeight / above);
 
   const x = side === "right" ? p.width - margin - m.bird.x1 * s : margin - m.bird.x0 * s;
-  const y = p.dividerY - m.lineY * s;
+  const y = p.dividerY - perchY * s;
   return { x, y, scale: s };
 }

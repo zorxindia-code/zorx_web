@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 import { ASSETS } from "@/config/brand";
+import { BIRD_BOX, BIRD_PATH } from "@/lib/contactMap";
+import { createMapFlight } from "@/lib/mapFlight";
 import "./BirdCursor.css";
 
 /**
@@ -20,6 +22,12 @@ import "./BirdCursor.css";
  * Motion: pointer position written once per animation frame as a transform —
  * no easing loop, so there is no lag. Hover / press states are CSS transitions
  * on an inner element (no transitions with reduced motion).
+ *
+ * Map mode: over the contact map ([data-cursor-zone="map"]) the logo bird
+ * gives way to the map's own black bird, which follows the pointer and circles
+ * the Dubai / Kerala markers when it nears them (src/lib/mapFlight.ts). It is a
+ * second element only because it must not use the difference blend; this
+ * controller owns both, and only one is ever shown.
  */
 const HOTSPOT = { x: 253 / 540, y: 148 / 266 };
 
@@ -29,10 +37,12 @@ const LINK = "a[href], label, summary, select, input, textarea";
 
 export function BirdCursor() {
   const root = useRef<HTMLDivElement>(null);
+  const mapRoot = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = root.current;
-    if (!el) return;
+    const mapEl = mapRoot.current;
+    if (!el || !mapEl) return;
     const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
     if (!fine.matches) return;
 
@@ -41,6 +51,20 @@ export function BirdCursor() {
     let y = 0;
     let raf = 0;
     let on = false;
+    let zone: HTMLElement | null = null;
+    const flight = createMapFlight(mapEl);
+
+    const setZone = (next: HTMLElement | null) => {
+      if (next === zone) return;
+      zone = next;
+      if (zone) {
+        el.dataset.mode = "map";
+        flight.enter(zone, x, y);
+      } else {
+        delete el.dataset.mode;
+        flight.leave();
+      }
+    };
 
     const write = () => {
       raf = 0;
@@ -51,12 +75,14 @@ export function BirdCursor() {
       on = visible;
       el.dataset.visible = visible ? "true" : "false";
       html.classList.toggle("zorx-cursor-on", visible);
+      if (!visible) setZone(null);
     };
 
     const onMove = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return show(false); // touch / pen: native behaviour
       x = e.clientX;
       y = e.clientY;
+      flight.move(x, y);
       if (!on) write(); // first appearance: place before showing (no slide-in)
       else if (!raf) raf = requestAnimationFrame(write);
       show(true);
@@ -65,6 +91,9 @@ export function BirdCursor() {
       if (e.pointerType !== "mouse") return;
       const t = e.target as Element | null;
       el.dataset.state = t?.closest(CARD) ? "card" : t?.closest(BUTTON) ? "button" : t?.closest(LINK) ? "link" : "";
+      x = e.clientX;
+      y = e.clientY;
+      if (on) setZone(t?.closest<HTMLElement>('[data-cursor-zone="map"]') ?? null);
     };
     const onDown = (e: PointerEvent) => {
       if (e.pointerType === "mouse") el.dataset.pressed = "";
@@ -85,6 +114,7 @@ export function BirdCursor() {
 
     return () => {
       cancelAnimationFrame(raf);
+      flight.destroy();
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerover", onOver);
       window.removeEventListener("pointerdown", onDown);
@@ -97,14 +127,29 @@ export function BirdCursor() {
   }, []);
 
   const { src, width, height } = ASSETS.birdIcon;
+  const [bx0, by0, bx1, by1] = BIRD_BOX;
   return (
-    <div ref={root} className="zorx-cursor" data-visible="false" aria-hidden="true">
-      <div
-        className="zorx-cursor-bird"
-        style={{ left: `${-HOTSPOT.x * 100}%`, top: `${-HOTSPOT.y * 100}%`, transformOrigin: `${HOTSPOT.x * 100}% ${HOTSPOT.y * 100}%` }}
-      >
-        <Image src={src} alt="" width={width} height={height} unoptimized loading="eager" draggable={false} />
+    <>
+      <div ref={root} className="zorx-cursor" data-visible="false" aria-hidden="true">
+        <div
+          className="zorx-cursor-bird"
+          style={{ left: `${-HOTSPOT.x * 100}%`, top: `${-HOTSPOT.y * 100}%`, transformOrigin: `${HOTSPOT.x * 100}% ${HOTSPOT.y * 100}%` }}
+        >
+          <Image src={src} alt="" width={width} height={height} unoptimized loading="eager" draggable={false} />
+        </div>
       </div>
-    </div>
+      {/* Map mode: the map's bird, centred on the pointer (its centroid is the hotspot). */}
+      <div ref={mapRoot} className="zorx-cursor-map" data-visible="false" aria-hidden="true">
+        <svg
+          className="zorx-cursor-map-bird"
+          viewBox={`${bx0} ${by0} ${bx1 - bx0} ${by1 - by0}`}
+          width={bx1 - bx0}
+          height={by1 - by0}
+          style={{ left: bx0, top: by0, transformOrigin: `${-bx0}px ${-by0}px` }}
+        >
+          <path d={BIRD_PATH} />
+        </svg>
+      </div>
+    </>
   );
 }

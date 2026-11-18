@@ -9,9 +9,16 @@ import { BIRD_PATH, BIRD_VIEWBOX } from "./birdPath";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
 
-/** Scroll range the story plays over (no pinning — the page scrolls normally). */
-const START = "top 80%";
-const END = "top 12%"; // finished while the paragraph is comfortably in view
+/**
+ * Scroll range the story plays over (no pinning — the page scrolls normally):
+ * the section's whole time on screen, from its top entering low in the
+ * viewport until its bottom is above the middle — so the background develops
+ * slowly enough to be watched, while the text still lands early (see build()).
+ */
+const START = "top 85%";
+const END = "bottom 55%";
+/** Scrub smoothing (s): the playhead glides after the scroll. */
+const SCRUB = 1.6;
 
 /**
  * "Your vision, our expertise" — the agency introduction between the showreel
@@ -106,11 +113,11 @@ export default function VisionSection() {
       const x = xAt(flight.t) * ctm.a + ctm.e;
       const r = line1.getBoundingClientRect();
       let sweep = ((x - r.left) / r.width) * 100;
-      // Over the last quarter of the flight, make sure the feathered edge has
-      // cleared the end of the text, whatever the layout (the light may finish
-      // short of it on narrow screens) — no part of the line stays faded.
+      // The light is slow, the headline must not wait for it: from a fifth to
+      // just past half of the flight the feathered edge is drawn clear of the
+      // text, whatever the layout — no part of the line stays faded.
       const need = textEnd + 22;
-      const k = Math.max(0, Math.min(1, (flight.t - 0.75) / 0.25));
+      const k = Math.max(0, Math.min(1, (flight.t - 0.2) / 0.35));
       if (sweep < need) sweep += (need - sweep) * k * k * (3 - 2 * k);
       line1.style.setProperty("--sweep", `${sweep.toFixed(2)}%`);
     };
@@ -138,15 +145,17 @@ export default function VisionSection() {
 
       tl = gsap.timeline({
         defaults: { ease: "none" },
-        scrollTrigger: { trigger: root, start: START, end: END, scrub: 1, invalidateOnRefresh: true, refreshPriority: -1 },
+        scrollTrigger: { trigger: root, start: START, end: END, scrub: SCRUB, invalidateOnRefresh: true, refreshPriority: -1 },
       });
+      // The background runs across most of the range; the text keeps its early
+      // cues, so it is read while the outline and the light are still unfolding.
       // 1 · wings unfold from the notch (both directions at once)
-      tl.fromTo(draw, { d: 0 }, { d: L / 2, duration: 5.6, ease: "power1.inOut", onUpdate: setOutline }, 0);
-      tl.fromTo(outline, { opacity: 0.35 }, { opacity: 1, duration: 3, ease: "power1.out" }, 0);
+      tl.fromTo(draw, { d: 0 }, { d: L / 2, duration: 9, ease: "power1.inOut", onUpdate: setOutline }, 0);
+      tl.fromTo(outline, { opacity: 0.35 }, { opacity: 1, duration: 4, ease: "power1.out" }, 0);
       // 2 · light along the upper edges, left tip → right tip, then into the outline
-      tl.fromTo(trailGroup, { opacity: 0 }, { opacity: 1, duration: 0.4 }, 1);
-      tl.fromTo(flight, { t: 0 }, { t: 1, duration: 3, ease: "sine.inOut", onUpdate: setTrail }, 1);
-      tl.to(trailGroup, { opacity: 0, duration: 0.9, ease: "power1.in" }, 3.7);
+      tl.fromTo(trailGroup, { opacity: 0 }, { opacity: 1, duration: 0.8 }, 1);
+      tl.fromTo(flight, { t: 0 }, { t: 1, duration: 7.5, ease: "sine.inOut", onUpdate: setTrail }, 1);
+      tl.to(trailGroup, { opacity: 0, duration: 1.6, ease: "power1.in" }, 7.6);
       // 3 · YOUR VISION, — masked rise; its feathered sweep is driven by the light
       tl.fromTo(line1, { yPercent: 100 }, { yPercent: 0, duration: 2, ease: "power3.out" }, 1.1);
       // 4 · OUR EXPERTISE — a glide (rise + fade + slight drift), lands with the outline
@@ -168,8 +177,8 @@ export default function VisionSection() {
         ),
       );
       // settle: the drawn stroke eases back to the reference tone
-      tl.fromTo(outline, { stroke: "#34373a" }, { stroke: "#252627", duration: 2.4, ease: "power1.inOut" }, 7.6);
-      tl.set({}, {}, 10); // a little held composition at the end of the range
+      tl.fromTo(outline, { stroke: "#34373a" }, { stroke: "#252627", duration: 3, ease: "power1.inOut" }, 9);
+      tl.set({}, {}, 12.5); // a little held composition at the end of the range
       setOutline();
       setTrail();
     };

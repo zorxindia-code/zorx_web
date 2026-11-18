@@ -91,12 +91,17 @@ export function computeLayout(W: number, H: number): StageLayout {
   const ey = ly + (s - es) / 2;
   const zFinal = lx;
   const xFinal = lx + 2 * (s + gap);
-  const travel = zFinal + s + 48; // = (W + 48) − xFinal, by symmetry
 
   // Covering square centred on the O centre: reaches every stage corner.
   const ocx = logoO.x + s / 2;
   const ocy = logoO.y + s / 2;
   const cover = 2 * Math.max(ocx, W - ocx, ocy, H - ocy);
+
+  // Z / X travel in lockstep with this square contracting to the O (same span
+  // and ease), so starting just outside its edge keeps them outside it the whole
+  // way — on portrait screens the square starts far beyond the sides. Mirrored:
+  // the same distance for X (the lockup and the square are centred on the O).
+  const travel = Math.max(zFinal + s + 48, zFinal + (s + es) / 2 - (ocx - cover / 2) + 8);
 
   return {
     W,

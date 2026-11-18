@@ -38,7 +38,7 @@ export default function ZorxExperience() {
   const tagline = useRef<HTMLDivElement>(null);
   const hint = useRef<HTMLDivElement>(null);
   const loader = useRef<HTMLVideoElement>(null);
-  const loaderSun = useRef<HTMLDivElement>(null);
+  const loaderRing = useRef<HTMLDivElement>(null);
   const reel = useRef<HTMLDivElement>(null);
   const reelVideo = useRef<HTMLVideoElement>(null);
 
@@ -61,10 +61,13 @@ export default function ZorxExperience() {
       const base = { art: 1, square: 1, video: 1, field: 1 };
 
       // Showreel buffering indicator — attribute toggles only, no re-renders.
+      // On while the video genuinely can't play yet (or stalls); off the moment
+      // it can play — even before it is started — so it never shows needlessly.
       const setReelLoading = (on: boolean) => (reelEl.dataset.loading = on ? "true" : "false");
       const onReelPlaying = () => setReelLoading(false);
       const onReelWaiting = () => setReelLoading(true);
       reelVid.addEventListener("playing", onReelPlaying);
+      reelVid.addEventListener("canplay", onReelPlaying);
       reelVid.addEventListener("waiting", onReelWaiting);
 
       const rig: Rig = {
@@ -72,7 +75,7 @@ export default function ZorxExperience() {
         frame: frame.current!,
         art: art.current!,
         loader: loaderEl,
-        loaderSun: loaderSun.current!,
+        loaderRing: loaderRing.current!,
         bird: createBirdController(loaderEl, ASSETS.loaderDuration, reduce),
         z: z.current!,
         x: x.current!,
@@ -101,7 +104,7 @@ export default function ZorxExperience() {
         gsap.set(rig.art, { width: base.art, height: base.art });
         gsap.set([rig.z, rig.x], { width: base.square, height: base.square });
         // CSS showed the same small icon before hydration, so this is invisible.
-        gsap.set([rig.loader, rig.loaderSun], { left: 0, top: 0, width: base.video, height: base.video });
+        gsap.set([rig.loader, rig.loaderRing], { left: 0, top: 0, width: base.video, height: base.video });
         const t = L.logo.tagline;
         gsap.set(rig.tagline, { x: t.x, y: t.y, width: t.w, height: t.h });
         const f = L.comp.frame;
@@ -159,6 +162,7 @@ export default function ZorxExperience() {
         window.clearTimeout(timer);
         window.removeEventListener("resize", onResize);
         reelVid.removeEventListener("playing", onReelPlaying);
+        reelVid.removeEventListener("canplay", onReelPlaying);
         reelVid.removeEventListener("waiting", onReelWaiting);
         reelVid.pause();
         rig.bird.dispose();
@@ -175,7 +179,7 @@ export default function ZorxExperience() {
       {/* The one pinned section. ScrollTrigger adds the scroll distance (pin spacing). */}
       <section ref={stage} className="zorx-stage" aria-label="ZORX showreel">
         <ZorxLogoReveal frameRef={frame} artRef={art} zRef={z} xRef={x} taglineRef={tagline} />
-        <Preloader videoRef={loader} sunRef={loaderSun} />
+        <Preloader videoRef={loader} ringRef={loaderRing} />
         <ShowreelSection reelRef={reel} videoRef={reelVideo} />
         <div ref={hint} className="zorx-hint" aria-hidden="true">
           <div className="zorx-hint-inner">

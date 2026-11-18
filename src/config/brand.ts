@@ -42,18 +42,18 @@ export const ASSETS = {
   loaderDuration: 4.004,
 
   /**
-   * Normal website loading indicator — a SEPARATE system from the intro video.
-   * White bird cut from o.png (its transparent cut-out, inverted), 540×266, 6 KB.
+   * The bird from inside the O, white (cut from o.png's transparent cut-out,
+   * inverted), 540×266 — the stationary logo of the loader, and the cursor.
    * o.png itself is untouched.
    */
   birdIcon: { src: "/logo/derived/bird-white.png", width: 540, height: 266 },
   /**
-   * Hand-drawn ring ("sun") that circles the loading bird: black ink on
-   * transparent, 235×237, ring centre at (116.5, 117.5), inner radius ≈108.
-   * Shown white via CSS (the loaders sit on black); the file is untouched.
+   * The loading sun: a hand-drawn ring, black ink on transparent, 235×237. Its
+   * stroke is bold at top and bottom and thins to faint, light strokes at the
+   * sides — spun about its centre (116.5, 117.5), those light sides sweep round
+   * like a spinner. The file is untouched (inverted to white in CSS on black).
    */
   loadingSun: { src: "/icons/loading_sun.png", width: 235, height: 237, cx: 116.5, cy: 117.5 },
-
   /**
    * Showreel, re-encoded from /videos/showreel.mp4 (3840×2160, 80 MB, with audio)
    * to silent H.264 with fast-start. Original untouched.
@@ -136,9 +136,8 @@ export const TUNING = {
     //            the white background contracts to the O square and turns Ice Blue
     settle: 70, // video scrubs to its final (logo) pose
     handoff: 20, // o.png fades in over the aligned video bird
-    zx: 110, // Z from the left AND X from the right — one tween (same start, duration,
-    //          ease, mirrored distance). Timed to ARRIVE exactly as the O finishes
-    //          settling, so it starts while the bird is still growing into the O.
+    // Z from the left and X from the right run in lockstep with `grow` (same
+    // start, span and ease, mirrored distance) — see buildScrollExperience.
     tagline: 60, // INTERACTIVE AGENCY settles under the completed logo
     taglineOverlap: 10,
     hold: 40, // completed logo rests

@@ -26,6 +26,10 @@ export function BirdAnimation({ birds }: { birds: BirdClip[] }) {
           />
         )),
       )}
+      {/* The divider over a bird's own tail, behind its toes (see BirdGrip). */}
+      {birds.map((b) =>
+        b.grip ? <div key={`${b.id}-grip`} data-grip={b.id} className="zorx-service-grip" aria-hidden="true" /> : null,
+      )}
     </>
   );
 }

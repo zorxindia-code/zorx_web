@@ -1,0 +1,139 @@
+/*
+ * Contact (see ContactSection.tsx): black, a thin outlined frame aligned with
+ * the Featured Work grid (8.2vw side margins), centred message + CTA, and the
+ * courtship clip perched on the frame's top border.
+ */
+.zorx-contact {
+  --contact-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  background: #000;
+  color: #fff;
+  font-family: var(--font-services), ui-sans-serif, system-ui, sans-serif;
+  /* room above the frame for the birds standing on its top border */
+  padding: clamp(5rem, 13vw, 13rem) max(1.25rem, 8.2vw) clamp(4rem, 9vw, 8rem);
+  /* never a horizontal scroll; a high courtship leap may rise past the top */
+  overflow-x: clip;
+}
+
+.zorx-contact-frame {
+  position: relative;
+  container-type: inline-size; /* the birds are sized in frame units (cqw) */
+  border: 1px solid rgb(233 245 255 / 0.55);
+  padding: clamp(3.5rem, 8vw, 8rem) 1.25rem clamp(3rem, 6.5vw, 6.5rem);
+  text-align: center;
+}
+
+.zorx-contact-title {
+  margin: 0 auto;
+  max-width: 18em;
+  font-size: clamp(1.5rem, 3.4vw, 3.25rem);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--zorx-ice);
+  text-wrap: balance;
+}
+
+.zorx-contact-cta-wrap {
+  margin-top: clamp(1.5rem, 3vw, 2.75rem);
+}
+.zorx-contact-cta {
+  display: inline-block;
+  padding: 0.55em 1.4em 0.5em;
+  border: 1px solid #fff;
+  color: #fff;
+  font-size: clamp(0.78rem, 1.15vw, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+}
+a.zorx-contact-cta {
+  transition:
+    background-color 0.4s var(--contact-ease),
+    color 0.4s var(--contact-ease),
+    letter-spacing 0.5s var(--contact-ease);
+}
+a.zorx-contact-cta:hover {
+  background: var(--zorx-ice);
+  color: #000;
+  letter-spacing: 0.11em;
+}
+a.zorx-contact-cta:focus-visible {
+  outline: 1px solid var(--zorx-ice);
+  outline-offset: 4px;
+}
+
+/* ----------------------------------------------------------- perched birds */
+/*
+ * Males (clip) left, female (still) right, on the top border. Both are scaled
+ * to one resting bird height (--bird-h: crown to perch, in frame units) and
+ * placed by their own measurements (CONTACT_BIRDS, asset px): the row each
+ * grips lands exactly on the border line — the 1px border's centre is 0.5px
+ * above the padding box. The leaps of the clip stay clear of the female.
+ */
+.zorx-contact-birds {
+  --bird-h: min(10cqw, 150px);
+  --males-x: 29%; /* centre of the resting males */
+  --female-x: 79%; /* the female's feet */
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.zorx-contact-males {
+  --k: calc(var(--bird-h) / (var(--mp) - var(--mc))); /* length per clip px */
+  position: absolute;
+  left: calc(var(--males-x) - var(--mx) * var(--k));
+  top: calc(-0.5px - var(--mp) * var(--k));
+  width: calc(var(--mw) * var(--k));
+  height: calc(var(--mh) * var(--k));
+}
+.zorx-contact-birds-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.zorx-contact-female {
+  --kf: calc(var(--bird-h) * 0.96 / (var(--fp) - var(--fc))); /* length per image px */
+  position: absolute;
+  left: calc(var(--female-x) - var(--fx) * var(--kf));
+  top: calc(-0.5px - var(--fp) * var(--kf));
+  width: calc(var(--fw) * var(--kf));
+  height: calc(var(--fh) * var(--kf));
+}
+.zorx-contact-female img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+@media (max-width: 640px) {
+  .zorx-contact-birds {
+    --bird-h: 14cqw; /* a little larger on phones, still clear of the headline */
+    --males-x: 30%;
+    --female-x: 80%;
+  }
+}
+
+/* ----------------------------------------------------------- entrance */
+.zorx-contact [data-reveal] {
+  transition:
+    opacity 0.9s var(--contact-ease),
+    transform 1.1s var(--contact-ease);
+}
+.zorx-contact [data-reveal] + [data-reveal] {
+  transition-delay: 0.18s; /* CTA follows the headline */
+}
+.zorx-contact[data-motion] [data-reveal]:not([data-in]) {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zorx-contact [data-reveal],
+  a.zorx-contact-cta {
+    transition: none;
+  }
+}
