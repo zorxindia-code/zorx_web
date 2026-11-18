@@ -114,7 +114,7 @@ export default function ClientsSection() {
                   height={logo.height}
                   unoptimized
                   // Off-screen to the side, so lazy-loading would only fetch a logo as it
-                  // slides in (a visible pop). 48 KB in all, fetched at low priority.
+                  // slides in (a visible pop). ≈ 41 KB in all (14 logos), fetched at low priority.
                   loading="eager"
                   fetchPriority="low"
                   decoding="async"

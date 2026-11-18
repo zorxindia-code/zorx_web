@@ -1,5 +1,6 @@
 "use client";
 
+import { gsap } from "gsap";
 import { useEffect, useRef, type ReactNode } from "react";
 import { MAP_INTERACTION_TUNING as T } from "@/config/mapInteraction";
 import { mapBird } from "@/lib/mapFlight";
@@ -20,6 +21,11 @@ const PLACE: Record<OfficeId, string> = { uae: "Dubai, UAE", india: "Kerala, Ind
  *    office (after a short settle delay); the shared state (lib/officeSpotlight)
  *    is mirrored as data attributes: the inactive column fades, the active pin
  *    gets the radar pulse
+ *  - address reveal: when the active office CHANGES (not per frame, per
+ *    revolution or per scroll) its city / address lines rise into their masks;
+ *    a brief gap with no office (pointer passing from a column to a pin) is not
+ *    a change; a rapid switch kills the running reveal and settles every line
+ *  - touch: a tap on an office column selects it (like its pin)
  *  - pulses run only while the map is on screen
  */
 export default function MapMotion({ className, children }: { className: string; children: ReactNode }) {
@@ -50,6 +56,46 @@ export default function MapMotion({ className, children }: { className: string; 
     };
     mapBird.attach(ctx);
 
+    // ---------------------------------------------------------------- address reveal
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let shown: OfficeId | null = null; // the office whose lines were last revealed
+    let toDefault = 0;
+    let reveal: gsap.core.Tween | null = null;
+    const allLines = () => section.querySelectorAll<HTMLElement>("[data-reveal-line]");
+    const settle = () => {
+      reveal?.kill();
+      reveal = null;
+      gsap.set(allLines(), { clearProps: "transform,opacity" });
+    };
+    const revealOffice = (id: OfficeId) => {
+      settle(); // never leave a line half hidden
+      if (still) return;
+      const lines = section.querySelectorAll<HTMLElement>(`.zorx-office[data-office="${id}"] [data-reveal-line]`);
+      if (!lines.length) return;
+      reveal = gsap.fromTo(
+        lines,
+        { y: T.addressRevealOffset, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: T.addressRevealDuration,
+          stagger: T.addressRevealStagger,
+          ease: T.addressRevealEase,
+          overwrite: true,
+          onComplete: settle,
+        },
+      );
+    };
+    const track = (a: OfficeId | null) => {
+      window.clearTimeout(toDefault);
+      if (a) {
+        if (a !== shown) {
+          shown = a;
+          revealOffice(a);
+        }
+      } else toDefault = window.setTimeout(() => (shown = null), T.defaultStateDelayMs);
+    };
+
     // ---------------------------------------------------------------- spotlight → DOM
     const paint = () => {
       const a = spotlight.active, sel = spotlight.get("selection");
@@ -63,6 +109,7 @@ export default function MapMotion({ className, children }: { className: string; 
       markers.forEach((m) => (m.dataset.mapMarker === a ? (m.dataset.active = "") : delete m.dataset.active));
       pins.forEach((p) => p.setAttribute("aria-pressed", String(p.dataset.pin === sel)));
       if (status) status.textContent = sel ? `${PLACE[sel]} office selected` : "";
+      track(a);
     };
     const unsub = spotlight.subscribe(paint);
     paint();
@@ -94,18 +141,27 @@ export default function MapMotion({ className, children }: { className: string; 
       const on = (e: Event) => {
         // focus counts when it is keyboard focus (a mouse click also focuses a pin)
         if (e.type === "focusin" && !(e.target as Element).matches(":focus-visible")) return;
+        // hover is a mouse / pen thing; a finger's enter / leave would just flicker
+        if (e.type === "pointerenter" && (e as PointerEvent).pointerType === "touch") return;
         hover(id);
       };
-      const off = () => hover(null);
+      const off = (e: Event) => {
+        if (e.type === "pointerleave" && (e as PointerEvent).pointerType === "touch") return;
+        hover(null);
+      };
+      // a tap (not a scroll — that ends in pointercancel) selects the office
+      const tap = (e: PointerEvent) => e.pointerType === "touch" && select(id);
       if (pointer) {
         el.addEventListener("pointerenter", on);
         el.addEventListener("pointerleave", off);
+        el.addEventListener("pointerup", tap);
       }
       el.addEventListener("focusin", on);
       el.addEventListener("focusout", off);
       offs.push(() => {
         el.removeEventListener("pointerenter", on);
         el.removeEventListener("pointerleave", off);
+        el.removeEventListener("pointerup", tap);
         el.removeEventListener("focusin", on);
         el.removeEventListener("focusout", off);
       });
@@ -115,7 +171,6 @@ export default function MapMotion({ className, children }: { className: string; 
 
     // ---------------------------------------------------------------- on screen / tab visibility
     // pulses / radar run only on screen — and never with reduced motion
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const io = new IntersectionObserver((es) => {
       const v = es[es.length - 1].isIntersecting;
       mapBird.setOnScreen(v);
@@ -129,6 +184,8 @@ export default function MapMotion({ className, children }: { className: string; 
     return () => {
       unsub();
       window.clearTimeout(timer);
+      window.clearTimeout(toDefault);
+      settle();
       offs.forEach((f) => f());
       root.removeEventListener("click", onPin);
       document.removeEventListener("keydown", onKey);

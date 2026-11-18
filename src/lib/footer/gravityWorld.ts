@@ -1,6 +1,7 @@
 import type MatterNS from "matter-js";
 import { GRAVITY_TUNING as T } from "@/config/socials";
 import { LETTERS, SCENE_W, START, TARGET, VIEW_H } from "@/lib/footer/thanksScene";
+import { SUPPORTS } from "@/lib/footer/thanksSupports";
 
 type Matter = typeof MatterNS;
 type Body = MatterNS.Body;
@@ -19,6 +20,27 @@ export interface GravityObject {
 const CAT = { wall: 0x1, letter: 0x2, obj: 0x4 } as const;
 const STEP = 1000 / 120; // fixed sub-step (ms): thin surfaces never tunnel
 const MAX_STEPS = 6;
+/** Speed caps (Matter units: scene units / angle per 16.7 ms). At the 120 Hz
+ *  sub-step an object moves ≤ 15 units per step — every collider is thicker. */
+const MAX_SPEED = 30;
+const MAX_SPIN = 0.4;
+/** The floor's top: just above the page's last line, so a body resting on it is whole. */
+const FLOOR_Y = VIEW_H - 1.5;
+/** Recovery: an embedded body floats up at this speed (units / 16.7 ms), through the letters. */
+const RISE = 3.2;
+
+/** Top of a convex polygon (flat x,y list) at x, or Infinity where it doesn't reach. */
+function topAt(flat: readonly number[], x: number) {
+  let top = Infinity;
+  const n = flat.length / 2;
+  for (let i = 0; i < n; i++) {
+    const x1 = flat[2 * i], y1 = flat[2 * i + 1], x2 = flat[(2 * i + 2) % flat.length], y2 = flat[(2 * i + 3) % flat.length];
+    if ((x < Math.min(x1, x2)) || (x > Math.max(x1, x2))) continue;
+    const y = x1 === x2 ? Math.min(y1, y2) : y1 + ((x - x1) / (x2 - x1)) * (y2 - y1);
+    if (y < top) top = y;
+  }
+  return top;
+}
 
 /**
  * The THANKS footer's local physics world (Matter.js). Scene units are the
@@ -54,21 +76,57 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
     }),
   );
   const letterParts = letterBodies.flatMap((b) => b.parts.slice(1));
+  // invisible gap plugs (thanksSupports.ts): the same category as the letters
+  const plugs = SUPPORTS.map((sp) => {
+    const verts = sp.points.map(([x, y]) => ({ x, y }));
+    const c = M.Vertices.centre(verts);
+    return M.Bodies.fromVertices(c.x, c.y, [verts], {
+      isStatic: true,
+      friction: T.friction,
+      collisionFilter: { category: CAT.letter, mask: CAT.obj },
+    });
+  });
+  const solids = [...letterParts, ...plugs]; // what an object must never sit inside
   const wall = (x: number, y: number, w: number, h: number) =>
     M.Bodies.rectangle(x, y, w, h, { isStatic: true, friction: T.friction, collisionFilter: { category: CAT.wall, mask: CAT.obj } });
   const t = 400; // thick walls: nothing escapes at speed
+  // the ceiling follows the black space above the footer (setCeiling); the side
+  // walls run far above it
+  let ceilY = 0;
+  const ceiling = wall(SCENE_W / 2, ceilY - t / 2, SCENE_W + 2 * t, t);
+  const tall = VIEW_H + 2 * t + 1600;
   M.Composite.add(world, [
     ...letterBodies,
-    // floor on the page's last line (the crop): nothing falls out of sight; the
-    // letters' bodies continue below it, complete, as the drawn letters do
-    wall(SCENE_W / 2, VIEW_H + t / 2, SCENE_W + 2 * t, t),
-    wall(-t / 2, VIEW_H / 2, t, VIEW_H + 2 * t),
-    wall(SCENE_W + t / 2, VIEW_H / 2, t, VIEW_H + 2 * t),
-    wall(SCENE_W / 2, -t / 2, SCENE_W + 2 * t, t), // ceiling: stays inside the footer
+    ...plugs,
+    // safety floor just above the page's last line: a fallback only — the letters
+    // and plugs are the ground; their bodies continue below it, as the letters do
+    wall(SCENE_W / 2, FLOOR_Y + t / 2, SCENE_W + 2 * t, t),
+    wall(-t / 2, VIEW_H - tall / 2 + t, t, tall),
+    wall(SCENE_W + t / 2, VIEW_H - tall / 2 + t, t, tall),
+    ceiling,
   ]);
 
+  // ---------------------------------------------------------------- the ground
+  // Height of the playable ground per scene unit of x: the first solid surface
+  // (letter or plug) from above, else the floor. Everything above it is open
+  // from above; a body's centre below it means the body is inside the letters.
+  const polys = [...LETTERS.flatMap((L) => L.parts), ...SUPPORTS.map((sp) => sp.points.flat())];
+  const ground = new Float32Array(SCENE_W + 1);
+  for (let x = 0; x <= SCENE_W; x++) {
+    let g = FLOOR_Y;
+    for (const poly of polys) g = Math.min(g, topAt(poly, x));
+    ground[x] = g;
+  }
+  const groundAt = (x: number) => ground[Math.max(0, Math.min(SCENE_W, Math.round(x)))];
+  /** Lowest a disc of radius r centred at x may sit without touching the ground. */
+  const lowestCentre = (x: number, r: number) => {
+    let y = Infinity;
+    for (let dx = -r; dx <= r; dx += Math.max(2, r / 12)) y = Math.min(y, groundAt(x + dx) - Math.sqrt(Math.max(0, r * r - dx * dx)));
+    return y;
+  };
+
   // ---------------------------------------------------------------- objects
-  const items = objects.map((o) => ({ ...o, body: null as Body | null, last: "" }));
+  const items = objects.map((o) => ({ ...o, body: null as Body | null, last: "", stuck: 0, rescue: false }));
   let scale = 1;
   let released = false;
   let guides: { body: Body; c: MatterNS.Constraint; angle: number; ghost: boolean }[] = [];
@@ -137,13 +195,87 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
   function render(force = false) {
     for (const it of items) {
       const b = it.body;
-      const x = b ? b.position.x : START[it.id].x, y = b ? b.position.y : START[it.id].y, a = b ? b.angle : 0;
+      let x = b ? b.position.x : START[it.id].x, y = b ? b.position.y : START[it.id].y;
+      const a = b ? b.angle : 0;
+      if (b) {
+        // drawn inside the walls and under the ceiling: a hard impact can sink a
+        // body into them for a sub-step before the solver pushes it out — that
+        // frame must not show it cut by the page edge or the layer's top
+        const [r, half] = core(it);
+        const ex = r + Math.abs(Math.cos(a)) * half, ey = r + Math.abs(Math.sin(a)) * half;
+        x = Math.max(ex, Math.min(SCENE_W - ex, x));
+        y = Math.max(ceilY + ey, y);
+      }
       const key = `${x.toFixed(2)},${y.toFixed(2)},${a.toFixed(4)},${scale}`;
       if (!force && key === it.last) continue;
       it.last = key;
       it.el.style.transform = `translate3d(${(x * scale).toFixed(2)}px, ${(y * scale).toFixed(2)}px, 0) translate(-50%, -50%) rotate(${a.toFixed(4)}rad)`;
     }
     onFrame?.();
+  }
+
+  // ---------------------------------------------------------------- stability
+  /** Caps every object's speed and spin (a violent drag or throw stays playful, never tunnels). */
+  function capSpeeds() {
+    for (const it of items) {
+      const b = it.body;
+      if (!b || b.isSleeping) continue;
+      const v = Math.hypot(b.velocity.x, b.velocity.y);
+      if (v > MAX_SPEED) M.Body.setVelocity(b, { x: (b.velocity.x / v) * MAX_SPEED, y: (b.velocity.y / v) * MAX_SPEED });
+      if (Math.abs(b.angularVelocity) > MAX_SPIN) M.Body.setAngularVelocity(b, Math.sign(b.angularVelocity) * MAX_SPIN);
+    }
+  }
+  /** Half-extents of an object's capsule core: [radius, half segment length]. */
+  const core = (it: (typeof items)[number]) => (it.kind === "disc" ? [it.r!, 0] : [it.h! / 2, Math.max(0, it.w! / 2 - it.h! / 2)]);
+  const isDragged = (b: Body) => [...dragging.values()].some((d) => d.body === b);
+  /** Inside the letters / plugs, or below the page? (centre under the ground, deep overlap, past the floor) */
+  const embedded = (it: (typeof items)[number]) => {
+    const b = it.body!;
+    if (b.bounds.max.y > FLOOR_Y + 1.5) return true;
+    const [r, half] = core(it);
+    const c = Math.cos(b.angle), s = Math.sin(b.angle);
+    for (const k of half ? [-1, 0, 1] : [0]) {
+      const x = b.position.x + c * half * k, y = b.position.y + s * half * k;
+      if (y > groundAt(x) + r * 0.25) return true;
+    }
+    return M.Query.collides(b, solids).some((col) => col.depth > 5);
+  };
+  /**
+   * Recovery (rare: a violent drag or numerical trouble): a body embedded for a
+   * few checks floats straight up, passing through the letters, and is solid
+   * again the moment it is clear. Smooth — never a jump.
+   */
+  let checkN = 0;
+  function recover() {
+    const check = ++checkN % 4 === 0;
+    for (const it of items) {
+      const b = it.body;
+      if (!b) continue;
+      if (it.rescue) {
+        if (isDragged(b)) {
+          it.rescue = false;
+          b.collisionFilter.mask = CAT.wall | CAT.obj | CAT.letter;
+          continue;
+        }
+        M.Body.setVelocity(b, { x: b.velocity.x * 0.9, y: -RISE });
+        M.Body.setAngularVelocity(b, b.angularVelocity * 0.9);
+        const [r] = core(it);
+        if (b.position.y < lowestCentre(b.position.x, r) - 1 && !M.Query.collides(b, solids).length) {
+          it.rescue = false;
+          it.stuck = 0;
+          b.collisionFilter.mask = CAT.wall | CAT.obj | CAT.letter;
+          M.Body.setVelocity(b, { x: b.velocity.x, y: -1 });
+        }
+        continue;
+      }
+      if (!check || b.isSleeping || isDragged(b)) continue;
+      it.stuck = embedded(it) ? it.stuck + 1 : 0;
+      if (it.stuck >= 3) {
+        it.rescue = true;
+        M.Sleeping.set(b, false);
+        b.collisionFilter.mask = CAT.wall | CAT.obj; // through the letters / plugs
+      }
+    }
   }
 
   // ---------------------------------------------------------------- loop
@@ -158,6 +290,8 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
     while (acc >= STEP && n < MAX_STEPS) {
       guide(STEP);
       M.Engine.update(engine, STEP);
+      capSpeeds();
+      if (!guides.length) recover();
       acc -= STEP;
       n++;
     }
@@ -167,6 +301,23 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
 
   // ---------------------------------------------------------------- pointer
   const dragging = new Map<number, { body: Body; c: MatterNS.Constraint; samples: { x: number; y: number; t: number }[] }>();
+  /**
+   * A drag target the object can actually reach: its centre kept inside the walls,
+   * below the ceiling and above the ground (letters + plugs), so a drag never
+   * pulls a body through a letter or out of sight. p = where the pointer holds it.
+   */
+  const reachable = (it: (typeof items)[number], b: Body, c: MatterNS.Constraint, p: { x: number; y: number }) => {
+    const off = c.pointB; // grab point relative to the centre (turns with the body)
+    const [r, half] = core(it);
+    const ca = Math.cos(b.angle), sa = Math.sin(b.angle);
+    const ex = r + Math.abs(ca) * half, ey = r + Math.abs(sa) * half;
+    let x = p.x - off.x, y = p.y - off.y;
+    x = Math.max(ex + 1, Math.min(SCENE_W - ex - 1, x));
+    let low = Infinity;
+    for (const k of half ? [-1, 0, 1] : [0]) low = Math.min(low, lowestCentre(x + ca * half * k, r) - sa * half * k);
+    y = Math.max(ceilY + ey + 1, Math.min(low - 1, y));
+    return { x: x + off.x, y: y + off.y };
+  };
   const knockedAt = new WeakMap<Body, number>();
   const toLocal = (b: Body, p: { x: number; y: number }) => {
     const dx = p.x - b.position.x, dy = p.y - b.position.y, c = Math.cos(-b.angle), s = Math.sin(-b.angle);
@@ -211,13 +362,33 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
       cancelAnimationFrame(raf);
     },
     render,
+    /** The ceiling, in scene units (negative = above the stage: the black space over the footer). */
+    setCeiling(y: number) {
+      ceilY = y;
+      M.Body.setPosition(ceiling, { x: SCENE_W / 2, y: y - t / 2 });
+    },
+    /** Development overlay: static colliders, the ground line and the live bodies. */
+    debugShapes() {
+      const outline = (b: Body) => (b.parts.length > 1 ? b.parts.slice(1) : [b]).map((q) => q.vertices.map((v) => `${v.x.toFixed(1)},${v.y.toFixed(1)}`).join(" "));
+      return {
+        plugs: plugs.flatMap(outline),
+        walls: [ceilY, FLOOR_Y],
+        ground: Array.from(ground, (g, x) => (x % 4 ? "" : `${x},${g.toFixed(1)}`)).filter(Boolean).join(" "),
+        bodies: items.flatMap((it) => (it.body ? outline(it.body).map((pts) => ({ pts, rescue: it.rescue })) : [])),
+      };
+    },
     /** Grab an object (pointer down on it). p in scene units. */
     grab(pointerId: number, id: string, p: { x: number; y: number }, t: number) {
       const it = items.find((i) => i.id === id);
       const b = it?.body;
       if (!b || guides.length) return false;
       M.Sleeping.set(b, false);
+      if (it.rescue) {
+        it.rescue = false;
+        b.collisionFilter.mask = CAT.wall | CAT.obj | CAT.letter;
+      }
       const c = M.Constraint.create({ pointA: { ...p }, bodyB: b, pointB: { x: p.x - b.position.x, y: p.y - b.position.y }, length: 0, stiffness: 0.2, damping: 0.1 });
+      c.pointA = reachable(it, b, c, p);
       M.Composite.add(world, c);
       dragging.set(pointerId, { body: b, c, samples: [{ ...p, t }] });
       return true;
@@ -225,7 +396,8 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
     drag(pointerId: number, p: { x: number; y: number }, t: number) {
       const d = dragging.get(pointerId);
       if (!d) return;
-      d.c.pointA = { ...p };
+      const it = items.find((i) => i.body === d.body);
+      d.c.pointA = it ? reachable(it, d.body, d.c, p) : { ...p };
       d.samples.push({ ...p, t });
       if (d.samples.length > 6) d.samples.shift();
       M.Sleeping.set(d.body, false);

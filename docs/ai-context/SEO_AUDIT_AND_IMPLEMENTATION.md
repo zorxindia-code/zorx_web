@@ -29,7 +29,7 @@ All Lighthouse numbers are **lab** measurements (Lighthouse 12.8.2, local `next 
 | **Critical** | Content hidden behind the route loading fallback (not in the visible server HTML) | **Fixed** |
 | **Critical** | No production domain → no valid canonical / sitemap / structured-data identifiers | **Prepared** — needs `SITE_URL` [Needs production] |
 | **High** | No robots.txt / sitemap.xml / canonical / Open Graph / X cards / structured data | **Fixed** |
-| **High** | No contact details (address, phone, email) and no social URLs on the site | Open [Needs business data] |
+| **High** | No contact details (address, phone, email) and no social URLs on the site | **Mostly resolved** 2026-11-18: addresses, phones (`tel:` links), Instagram + Facebook (links + `sameAs`); email, opening hours and the other social URLs still open |
 | **High** | Featured projects have no case-study pages; project and "View all" links inert | Architecture prepared; content [Needs business data] |
 | **Medium** | ~96 MB of unused source media inside `public/` | **Fixed** (moved to `assets-src/`) |
 | **Medium** | No branded 404 / error page | **Fixed** |
@@ -109,7 +109,7 @@ Validation with the Schema Markup Validator / Rich Results Test needs a public U
 ## 6. Local SEO readiness
 
 - Office columns are real HTML (`<address>`, headings); the map is an enhancement (pins are buttons with names, plus a live status line); the active-office fade only lowers opacity (≥ 0.25) and keyboard focus restores it.
-- **Blocked** [Needs business data]: postal addresses, phone numbers, emails, opening hours for both offices; then LocalBusiness markup.
+- **Update 2026-11-18:** postal addresses and phone numbers for both offices are on the site (real HTML, `tel:` links). Still missing: emails, opening hours. LocalBusiness markup can now be added (on approval).
 - Location pages `/locations/dubai` and `/locations/kerala`: not created (no unique content — avoiding doorway pages). Add them only with genuine local content.
 - Google Business Profiles: not verified here; see checklist.
 
@@ -157,8 +157,8 @@ Lighthouse accessibility 96 → **100** (mobile and desktop). Fixed: prohibited 
 ## 12. Outstanding business information [Needs business data]
 
 1. **Production domain** (→ `SITE_URL`) and preferred host form (www or apex).
-2. Office details for Dubai and Kerala: postal address, phone, email, opening hours (→ `src/config/contact.ts`). Unlocks visible NAP, `tel:`/`mailto:` links, LET'S TALK, LocalBusiness markup.
-3. Social profile URLs (→ `src/config/socials.ts`) — become links and `sameAs`.
+2. Office details for Dubai and Kerala — **addresses and phones supplied (2026-11-18)**; still missing: email, opening hours (→ `src/config/contact.ts`). An email adds a `mailto:` link; LET'S TALK already opens WhatsApp (2026-11-18).
+3. Social profile URLs — **Instagram and Facebook supplied (2026-11-18)** (links + `sameAs`); WhatsApp, LinkedIn, X still missing (→ `src/config/socials.ts`).
 4. Case studies: images, descriptions, services delivered, approved copy, dates (→ `src/config/work.ts` + project route).
 5. Approved copy for each service page (→ service route).
 6. Google Search Console access; analytics choice + consent approach.

@@ -6,6 +6,14 @@
  * THANKS letters — and so does the page: the letters run on below the edge.
  * Objects sit at their designed spots in CSS (left/top %) until the physics
  * takes over and moves them by transform — the same pixels, no jump.
+ *
+ * Two layers: the letters carry the crop (their SVG clips at the stage's bottom
+ * edge = the page's last line); the objects live in .zorx-gravity-play, which
+ * reaches --room px up into the black space above the footer (measured in
+ * GravityFooter.tsx; the physics ceiling sits just inside it), so a thrown icon
+ * is never cut by the stage's top. That layer clips only at its own top, the
+ * page edges and the stage bottom — so the document never grows — and takes no
+ * pointer events itself: only the objects do.
  */
 .zorx-gravity {
   background: #000;
@@ -19,7 +27,6 @@
   width: 100%;
   aspect-ratio: var(--scene-w) / var(--scene-h);
   container-type: inline-size;
-  overflow: clip;
   font-family: var(--font-services), ui-sans-serif, system-ui, sans-serif;
 }
 /* The release line: the top edge of the icon row (icons' top at y = 40). */
@@ -37,8 +44,26 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  overflow: visible;
+  overflow: hidden; /* the crop: the letters run on below the page's last line */
   pointer-events: none;
+}
+/* the objects' flight space: from --room above the stage down to its bottom */
+.zorx-gravity-play {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(-1 * var(--room, 0px));
+  bottom: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+/* the stage's own box inside it: objects keep the stage's coordinates */
+.zorx-gravity-frame {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--room, 0px);
+  bottom: 0;
 }
 .zorx-gravity-letters path {
   fill: none;
@@ -47,15 +72,47 @@
   stroke-linejoin: miter;
   vector-effect: non-scaling-stroke;
 }
-.zorx-gravity-debug {
+/* development collision overlay (?gravity-debug, dev builds only) */
+.zorx-gravity-debug-live {
   display: none;
 }
-.zorx-gravity-stage[data-debug] .zorx-gravity-debug {
-  display: inline;
-  fill: rgb(255 40 40 / 0.22);
-  stroke: #ff3b3b;
-  stroke-width: 1;
+.zorx-gravity-stage[data-debug] .zorx-gravity-debug-live {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
+}
+.zorx-gravity-debug-live * {
   vector-effect: non-scaling-stroke;
+  stroke-width: 1;
+}
+.zorx-gravity-debug-letters polygon {
+  fill: rgb(255 40 40 / 0.2);
+  stroke: #ff3b3b;
+}
+.zorx-gravity-debug-live [data-debug="plugs"] polygon {
+  fill: rgb(60 140 255 / 0.3);
+  stroke: #4c8dff;
+}
+.zorx-gravity-debug-live [data-debug="walls"] line {
+  stroke: #ffd400;
+  stroke-dasharray: 6 4;
+}
+.zorx-gravity-debug-live [data-debug="ground"] {
+  fill: none;
+  stroke: #3dff8a;
+}
+.zorx-gravity-debug-live [data-debug="bodies"] polygon {
+  fill: none;
+  stroke: #ff7bd5;
+}
+.zorx-gravity-debug-live [data-debug="bodies"] polygon[data-rescue] {
+  stroke: #ff2020;
+  stroke-width: 2;
 }
 
 .zorx-gravity-socials {
@@ -68,6 +125,7 @@
 .zorx-gravity-icon,
 .zorx-gravity-label {
   position: absolute;
+  pointer-events: auto; /* the layer around them lets pointers through */
   transform: translate(-50%, -50%);
   will-change: transform;
   user-select: none;

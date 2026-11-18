@@ -2,10 +2,11 @@
  * The THANKS footer: social links and the "thank you" greetings that fall onto
  * the THANKS letters (src/components/footer/GravityFooter.tsx).
  *
- * `href` is the account URL. No social accounts exist in the project yet, so
- * every link is null: the icon is shown (and is still a physical object) but is
- * not a link. Add the URL and it becomes a link (opens in a new tab), reachable
- * by keyboard. Never invent a URL.
+ * `href` is the account URL, as supplied by ZORX (Instagram and Facebook,
+ * 2026-11-18). An icon with a URL is a link (opens in a new tab, reachable by
+ * keyboard; a drag never opens it); one without (null) is shown — and is still
+ * a physical object — but is not a link. Never invent a URL. The URLs also feed
+ * the Organization's `sameAs` (src/config/seo.ts).
  *
  * Colours are measured from the supplied design (the footer reference images).
  */
@@ -46,9 +47,9 @@ const BLUE = "#4781ff";
 export const SOCIALS: readonly Social[] = [
   { id: "whatsapp", label: "WhatsApp", href: null, bg: GREEN, fg: "#ffffff" },
   { id: "linkedin", label: "LinkedIn", href: null, bg: ICE, fg: BLUE },
-  { id: "instagram", label: "Instagram", href: null, bg: RED, fg: "#ffffff" },
+  { id: "instagram", label: "Instagram", href: "https://www.instagram.com/zorx_intreactive_ageny/", bg: RED, fg: "#ffffff" },
   { id: "x", label: "X", href: null, bg: ICE, fg: "#000000" },
-  { id: "facebook", label: "Facebook", href: null, bg: BLUE, fg: "#ffffff" },
+  { id: "facebook", label: "Facebook", href: "https://www.facebook.com/profile.php?id=61594189226842", bg: BLUE, fg: "#ffffff" },
 ];
 
 export const GREETINGS: readonly Greeting[] = [

@@ -1,4 +1,4 @@
-/* 404 / error pages — ZORX black and Ice Blue, outlined uppercase buttons. */
+/* 404 / error pages — ZORX black and Ice Blue, underlined uppercase text CTAs (globals.css .zorx-cta). */
 .zorx-error {
   min-height: 100svh;
   display: grid;
@@ -27,14 +27,13 @@
 .zorx-error-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 1rem 2.5rem;
   justify-content: center;
 }
 .zorx-error-link {
-  display: inline-block;
-  padding: 0.55em 1.4em 0.5em;
-  border: 1px solid #fff;
-  background: none;
+  --cta-line: calc(0.582em - 1.32px);
+  --cta-track: 0.08em;
+  padding: calc(0.55em + 1px) 0 calc(0.5em + 1px);
   color: #fff;
   font: inherit;
   font-size: clamp(0.78rem, 1.15vw, 1rem);
@@ -43,9 +42,4 @@
   text-transform: uppercase;
   text-decoration: none;
 }
-.zorx-error-link:hover,
-.zorx-error-link:focus-visible {
-  background: var(--zorx-ice);
-  color: #000;
-  outline: none;
-}
+

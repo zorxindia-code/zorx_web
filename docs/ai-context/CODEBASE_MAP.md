@@ -21,7 +21,7 @@ zorx_web/
 ├─ public/
 │  ├─ logo/                  z.png o.png x.png (739² Ice Blue squares), lockups, derived/bird-white.png
 │  ├─ icons/                 loading_sun.png (loader ring), zorx-clients.png (logo sheet, source only)
-│  ├─ clients/*.webp         12 client logos cut from the sheet
+│  ├─ clients/*.webp         14 client logos, white on transparent: 12 cut from the sheet, 2 converted from supplied files (scripts/make-client-logo.mjs)
 │  ├─ fonts/Outfit/          variable TTF (used) + static/ TTFs (unused) + licence
 │  ├─ images/                contact-map.svg (traced), female-bird.png (original, 986 KB)
 │  ├─ screens/               design reference screenshots (landing_showreel.jpeg referenced in comments only)
@@ -53,7 +53,7 @@ zorx_web/
    └─ lib/
       ├─ zorx/               layout.ts, timelines.ts, media.ts  (intro maths + GSAP)
       ├─ services/           placement.ts (bird placement), grip.ts (peacock grip line)
-      ├─ footer/             gravityWorld.ts (Matter.js world), thanksScene.ts (GENERATED: letters, colliders, layout)
+      ├─ footer/             gravityWorld.ts (Matter.js world), thanksScene.ts (GENERATED: letters, colliders, layout), thanksSupports.ts (hand-authored invisible gap plugs)
       ├─ contactMap.ts       GENERATED map data (markers, bird glyph, route)
       ├─ mapFlight.ts        THE map bird: flight state machine, spiral orbit, cursor ⇄ map ownership
       ├─ officeSpotlight.ts  shared active office (hover ?? proximity ?? selection)
@@ -91,7 +91,7 @@ RootLayout (server)                         src/app/layout.tsx:24
 │     ├─ ContactSection (client)            contact/ContactSection.tsx:22 → PerchedBirds (video + next/image)
 │     ├─ OfficesSection (server)            footer/OfficesSection.tsx:12
 │     │  └─ ContactMap (server)             footer/ContactMap.tsx
-│     │     └─ MapMotion (client)           footer/MapMotion.tsx (pin-pulse pause/play, touch tap orbit, cursor zone)
+│     │     └─ MapMotion (client)           footer/MapMotion.tsx (spotlight → DOM, address reveal, column hover / tap, pin-pulse pause/play, cursor zone)
 │     └─ GravityFooter (client)             footer/GravityFooter.tsx (THANKS + socials + flip cards, Matter.js)
 ├─ SmoothScrollProvider (client)            providers/SmoothScrollProvider.tsx (Lenis ↔ gsap.ticker ↔ ScrollTrigger)
 ├─ BirdCursor (client)                      ui/BirdCursor.tsx:38 (uses lib/mapFlight.ts on the map)
@@ -109,7 +109,7 @@ RootLayout (server)                         src/app/layout.tsx:24
 | `src/config/services.ts` | `SERVICES` (4 rows), `SERVICES_TUNING` :158 | Service labels, bird clips and their placement meta, grip data import, hover delays, playback rate |
 | `src/config/clients.ts` | `CLIENT_LOGOS`, `CLIENTS_TUNING` :31 (speed 48 px/s, easeMs 650) | Carousel |
 | `src/config/work.ts` | `FEATURED_WORK`, `ALL_PROJECTS_HREF` (null) | 4 featured projects; image and href are null |
-| `src/config/contact.ts` | `OFFICES`, `CONTACT_HREF`, `CONTACT_BIRDS` | Office details (all null), LET'S TALK link (null → falls back to the first office email), manakin and female bird asset measurements and the exact processing command |
+| `src/config/contact.ts` | `OFFICES`, `CONTACT_HREF`, `CONTACT_BIRDS` | Office details (addresses + phones set; emails null), LET'S TALK link (`CONTACT_HREF` = WhatsApp chat with `CONTACT_WHATSAPP`, new tab), manakin and female bird asset measurements and the exact processing command |
 
 ### Libraries (pure logic)
 | File | Key exports (line) | Purpose |
@@ -119,7 +119,7 @@ RootLayout (server)                         src/app/layout.tsx:24
 | `src/lib/zorx/media.ts` | `waitForEssentials` :6, `createBirdController` :63 | Preload gate (min 2 s / max 3 s), intro bird video play / scrub / hold |
 | `src/lib/services/placement.ts` | `placeBird` :40 | Bird scale and position so its feet sit on the divider; text-collision limits |
 | `src/lib/services/grip.ts` | `createGrip` :13 | Frame-synced (rVFC) peacock grip-line opacity and toe cut-outs |
-| `src/lib/mapFlight.ts` | `MAP_FLIGHT` :8, `createMapFlight` :41 | Map-bird cursor: follow, orbit markers, heading |
+| `src/lib/mapFlight.ts` | `mapBird`, `createMapFlight` | THE map bird: flight state machine on `gsap.ticker` (after Lenis), cursor ⇄ map ownership |
 | `src/lib/contactMap.ts` | `MAP_*`, `MARKER`, `BIRD_*`, `ROUTE` | GENERATED — do not edit by hand |
 | `src/lib/videoSupport.ts` | `prefersHevcAlpha` :7 | UA-based choice of HEVC-alpha vs VP9-alpha |
 

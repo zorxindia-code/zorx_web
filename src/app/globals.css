@@ -524,3 +524,97 @@ html.zorx-locked body {
 @media (prefers-reduced-motion: reduce) {
   .zorx-service-label { transition: none; }
 }
+
+/* ------------------------------------------------------------------ text CTA */
+/*
+ * Minimal underlined text CTA (VIEW ALL PROJECTS, LET'S TALK, error pages):
+ * no box, a 1px line in the text colour ~6px below the capitals, exactly as
+ * wide as the text. Hover: the line retracts to the right, then redraws from
+ * the left (~460ms); the text never moves. Components set their own type and
+ * vertical padding and two hooks:
+ *   --cta-line   distance of the line's bottom edge above the box bottom
+ *   --cta-track  the letter-spacing (the trailing tracking is not underlined)
+ */
+.zorx-cta {
+  position: relative;
+  display: inline-block;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.zorx-cta::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: var(--cta-track, 0);
+  bottom: var(--cta-line, 0);
+  height: 1px;
+  background: currentColor;
+  pointer-events: none;
+}
+/* invisible, touch-friendly hit area — no effect on layout */
+a.zorx-cta::before,
+button.zorx-cta::before {
+  content: "";
+  position: absolute;
+  inset: -10px -16px;
+}
+a.zorx-cta,
+button.zorx-cta {
+  cursor: pointer;
+}
+/* hover: also on a CTA whose destination isn't set yet — the designed interaction */
+@media (hover: hover) {
+  .zorx-cta:hover::after {
+    animation: zorx-cta-redraw 0.46s both;
+  }
+}
+@keyframes zorx-cta-redraw {
+  0% {
+    transform: scaleX(1);
+    transform-origin: right center;
+    animation-timing-function: cubic-bezier(0.55, 0, 0.75, 0.3);
+  }
+  45% {
+    transform: scaleX(0);
+    transform-origin: right center;
+  }
+  45.01% {
+    transform: scaleX(0);
+    transform-origin: left center;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  100% {
+    transform: scaleX(1);
+    transform-origin: left center;
+  }
+}
+.zorx-cta:focus-visible {
+  outline: 1px solid var(--zorx-ice);
+  outline-offset: 8px;
+}
+/*
+ * The two primary CTAs — VIEW ALL PROJECTS and LET'S TALK — share one type
+ * scale: the former VIEW ALL PROJECTS size × 1.35 at every width (≈ 29 px
+ * desktop, 21.5 px at 1024, 16.8 px on phones), weight 500, tracking 0.05em.
+ */
+.zorx-cta-primary {
+  --cta-line: calc(0.491em - 5.04px); /* the line ~6 px under the capitals (calibrated at 16.8–29.2 px) */
+  --cta-track: 0.05em;
+  padding: calc(0.32em + 1px) 0 calc(0.28em + 1px);
+  font-size: clamp(1.053rem, 2.106vw, 1.8225rem);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zorx-cta::after {
+    animation: none !important;
+  }
+}

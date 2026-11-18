@@ -5,7 +5,7 @@
 | Category | Items |
 | --- | --- |
 | **Completed** | Intro preloader (sun spinner) and scroll story (bird → O, synchronized Z/O/X, tagline, showreel morph); showreel lazy playback; Vision section (slowed, cinematic scrub); Services with 4 perching birds and the peacock grip; client marquee; Featured Work layout; contact frame with looping manakins and the female; Offices section with the traced map, pins and the single map-bird cursor; global bird cursor; route/showreel loader; reduced-motion support; responsive layouts |
-| **Partially implemented** | Featured Work (no images or links); LET'S TALK (no destination); Offices (no address / phone / email) |
+| **Partially implemented** | Featured Work (no images or links); LET'S TALK (opens WhatsApp ✓); Offices (addresses + phones done; no email yet) |
 | **Placeholder** | "Website" service bird (demo woodpecker); project placeholders using client logos |
 | **Done since the audit** | THANKS gravity footer (social icons + flip cards, Matter.js); single continuous map bird; Lenis smooth scrolling; open contact frame; carousel 60 px/s |
 | **Waiting on content** | Social account URLs (`src/config/socials.ts`); original THANKS vector (currently traced from the reference) |
@@ -17,7 +17,7 @@ There are no TODO/FIXME comments in the source; placeholders are documented in c
 ## 2. Prioritised roadmap
 
 ### Phase 1 — Critical (content and conversion)
-1. Fill in the office details and contact email in `src/config/contact.ts`. LET'S TALK becomes a `mailto:` automatically.
+1. ~~Office addresses and phones~~ — **done** (2026-11-18). LET'S TALK opens WhatsApp (+91 97781 75804) — done. Still needed: a contact email in `src/config/contact.ts` (shown as a `mailto:` link in the office column).
 2. Supply project images and decide the project URLs. Fill in `src/config/work.ts` and `ALL_PROJECTS_HREF`.
 3. Confirm the contact headline copy.
 4. Commit the current work in logical commits.
@@ -31,7 +31,7 @@ There are no TODO/FIXME comments in the source; placeholders are documented in c
 
 ### Phase 3 — Features
 1. Project pages (`app/work/[slug]/page.tsx`) and an "All projects" page, reusing the FeaturedWork card styles.
-2. ~~Footer completion~~ — done (GravityFooter); remaining: social URLs, optionally the original THANKS vector export.
+2. ~~Footer completion~~ — done (GravityFooter); remaining: the WhatsApp, LinkedIn and X URLs (Instagram, Facebook set), optionally the original THANKS vector export.
 3. Navigation: a minimal header (logo + LET'S TALK) that appears after the intro pin and never fights the pinned stage.
 4. Final "Website" service bird footage, processed with `scripts/process-bird-video.mjs`.
 5. Optional contact form. It would need an API route or form service and env vars, and must not hide the native cursor in inputs.

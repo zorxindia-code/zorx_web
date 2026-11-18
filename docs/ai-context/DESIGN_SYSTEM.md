@@ -48,7 +48,7 @@ Key sizes (all fluid `clamp()`):
 | Vision headline | `clamp(2.25rem, 7.8vw, 9.75rem)`, line-height 1.04; mobile `clamp(2rem, 10.6vw, 4rem)` | 500, UPPERCASE |
 | Vision paragraph | `clamp(1rem, 1.38vw, 1.75rem)`, lh 1.56 | 400, white |
 | Service labels | `clamp(2.6rem, 9vw, 8.75rem)`, lh 1 | 500 outlined (2px stroke painted under an Ice Blue fill) → **700 solid black** when active (variable font interpolation) |
-| Featured Work button | `clamp(0.78rem, 1.56vw, 1.35rem)` | uppercase |
+| Primary CTAs (View all projects, Let's talk) | `clamp(1.053rem, 2.106vw, 1.8225rem)` — `.zorx-cta-primary` in `globals.css` | uppercase, 500, 0.05em |
 | Contact headline | `clamp(1.5rem, 3.4vw, 3.25rem)`, lh 1.12 | 500, Ice Blue |
 | LET'S TALK | `clamp(0.78rem, 1.15vw, 1rem)`, letter-spacing .08em | 600 uppercase, 1px white outline |
 | Offices text | `clamp(0.82rem, 1.02vw, 1rem)`, lh 1.6; headings letter-spacing .14em | 600 headings |
@@ -68,7 +68,7 @@ Key sizes (all fluid `clamp()`):
 | Element | Look |
 | --- | --- |
 | Dividers | 1px solid black between Services rows (`border-top`), full width |
-| Buttons | Outlined rectangles, uppercase, letter-spaced (LET'S TALK, View All Projects); hover fills Ice Blue (only when linked) |
+| CTAs | Underlined uppercase text, no box (`.zorx-cta` in `globals.css`): 1px line in the text colour ~6px below the capitals, as wide as the text; hover: the line retracts right, redraws from the left (~460ms) — also on a CTA without a destination yet; invisible hit area on links; reduced motion: no line motion. LET'S TALK and View All Projects share `.zorx-cta-primary` (one size / weight / tracking, ×1.35 of the former View All Projects size); the 404 / error pages keep their own size |
 | Cards (Work) | Image/placeholder 3:2, title below, hover scale 1.035 on media; client logo faint on placeholder |
 | Contact frame | Open: a top line (the birds' perch) and a bottom line only; side borders transparent |
 | Border radius | Effectively **none** across the site (sharp, editorial). Exception: map markers (circles) |
@@ -90,8 +90,8 @@ Key sizes (all fluid `clamp()`):
 | Client marquee | CSS keyframe `translate3d(-50%)` on a duplicated track; WAAPI `updatePlaybackRate` for hover ease | `ClientsSection.tsx/.css` | **60 px/s** (was 48); hovered logo scales 1.08 + glow; reduced motion → static scroll row |
 | Work / Contact reveals | IntersectionObserver + CSS transitions (`data-motion`, `data-in`) | `FeaturedWork.tsx`, `ContactSection.tsx` | Rise + fade, once |
 | Manakins | Transparent looping video (6.42s seamless dissolve loop), lazy, plays only on screen | `ContactSection.tsx` | Poster with reduced motion |
-| Map | One bird (`lib/mapFlight.ts`): free flight after the pointer, magnetic spiral into a stable orbit around Dubai / Kerala; office spotlight (other column 25 %); radar on the active pin; pins are buttons | `ContactMap.tsx`, `MapMotion.tsx`, `lib/officeSpotlight.ts`, `config/mapInteraction.ts` | Touch / office hover / selection: the map's own bird flies it; reduced motion: no orbit or pulses |
-| Cursor | rAF, `mix-blend-mode: difference` | `ui/BirdCursor.tsx/.css` | Bird from the O; scales on link/button/card; on the map it switches to the black map bird, which circles the Dubai / Kerala pins **continuously** while the pointer is near (`lib/mapFlight.ts`, 2.6 s per loop) |
+| Map | One bird (`lib/mapFlight.ts`): free flight after the pointer, magnetic spiral into a stable orbit around Dubai / Kerala; office spotlight (other column 20 %, 0.5 s) with a masked rise-and-fade reveal of the newly active office's address lines; radar on the active pin; pins are buttons | `ContactMap.tsx`, `MapMotion.tsx`, `lib/officeSpotlight.ts`, `config/mapInteraction.ts` | Touch / office hover / selection: the map's own bird flies it; reduced motion: no orbit or pulses |
+| Cursor | rAF, `mix-blend-mode: difference` | `ui/BirdCursor.tsx/.css` | Bird from the O; scales on link/button/card; on the map it switches to the black map bird, which circles the Dubai / Kerala pins **continuously** while the pointer is near (`lib/mapFlight.ts`, 2.4 s per loop, top speed ≈ 840 px/s) |
 | Smooth scrolling | Lenis 1.3.11 on the native document scroll, stepped by `gsap.ticker` (`lagSmoothing(0)`), `ScrollTrigger.update` on each Lenis scroll | `providers/SmoothScrollProvider.tsx`, `config/scroll.ts` | `lerp 0.085`, `wheelMultiplier 0.8`, `syncTouch: false` (native touch); stopped while the preloader locks (`html.zorx-locked`); off with reduced motion |
 | THANKS footer | Matter.js (local world, 120 Hz sub-steps, sleeping) + DOM transforms; CSS 3D flip cards | `footer/GravityFooter.tsx/.css`, `lib/footer/gravityWorld.ts` | Release when the icon row reaches the viewport bottom; guided first landing, then free drag / throw / knock; reduced motion → static landed layout |
 | Loaders | CSS spin of `loading_sun.png` around a stationary bird | `ui/LoadingIndicator.tsx`, `app/loading.tsx` | 150ms grace fade-in |

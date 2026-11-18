@@ -95,13 +95,13 @@ Commands: `npm run dev` · `npx eslint .` · `npx tsc --noEmit` · `npm run buil
 
 ### 3.6 Footer — `src/components/footer/SiteFooter.tsx`
 - **ContactSection** (`src/components/contact/*`):
-  - An outlined frame with "Interested in working together?" and **LET'S TALK**. The button is *not linked yet*: `CONTACT_HREF` is null until an email exists.
+  - An outlined frame with "Interested in working together?" and **LET'S TALK**. LET'S TALK opens a WhatsApp chat (`CONTACT_HREF` → `https://wa.me/919778175804`, new tab; 2026-11-18).
   - On the frame's top border, three male **Blue Manakins** (transparent looping video, lazy) perch on the left and a static **female** (`public/images/female-bird.png`) perches on the right.
 - **OfficesSection:**
   - Two "CONTACT" columns, **UAE** (white) and **INDIA** (grey). Address, phone and email are `null`, so only the headings show.
   - A **map** traced from the supplied artwork: blue seas, white land, red ring pins on Dubai and Kerala, and a black bird flying India → UAE (SVG SMIL).
   - With a mouse, the cursor becomes the map's bird and circles a pin when near it. On touch, tapping a pin sends a bird round it.
-- **GravityFooter (built):** five social icons and four multilingual flip cards (Gracias/¡Gracias!, Nanni/നന്ദി, Shukran/شكرًا, Xièxiè/谢谢) fall onto a huge outlined THANKS when the icon row reaches the viewport bottom; the letters are solid (traced convex colliders), the A leans on N, the page ends at 80 % of the letters' height. Drag, throw, knock with the cursor; click / tap / Enter / Space flips a card. Social URLs are `null` until supplied.
+- **GravityFooter (built):** five social icons and four multilingual flip cards (Gracias/¡Gracias!, Nanni/നന്ദി, Shukran/شكرًا, Xièxiè/谢谢) fall onto a huge outlined THANKS when the icon row reaches the viewport bottom; the letters are solid (traced convex colliders), the A leans on N, the page ends at 80 % of the letters' height. Drag, throw, knock with the cursor; click / tap / Enter / Space flips a card. Social URLs: Instagram and Facebook set (2026-11-18); WhatsApp, LinkedIn, X still `null`.
 
 ### 3.7 Global UI
 - **`BirdCursor`** (`src/components/ui/`): the white bird from the O follows the mouse (`mix-blend-mode: difference`) and scales on links, buttons and cards. Mouse/fine pointers only.
@@ -229,7 +229,7 @@ Details and recommendations: `TECHNICAL_AUDIT.md`. Roadmap: `DEVELOPMENT_ROADMAP
 | Change | Where |
 | --- | --- |
 | **THANKS gravity footer** — 5 social icons + 4 multilingual flip cards fall onto the outlined THANKS (Matter.js 0.20.0, lazy-loaded); letters traced from the reference into convex colliders; the A leans 3.2° on N; page ends at 80 % of the letters' height; drag / throw / knock; cards flip (rotateY) on click / tap / Enter / Space | `src/components/footer/GravityFooter.tsx/.css`, `src/lib/footer/{gravityWorld,thanksScene}.ts`, `src/config/socials.ts`, `scripts/trace-thanks.mjs` |
-| **Map: one bird** — the map's own flying bird was removed; the cursor's map bird circles Dubai / Kerala **continuously** while the pointer is near (2.6 s per loop) | `src/components/footer/ContactMap.tsx`, `src/lib/mapFlight.ts` |
+| **Map: one bird** — the map's own flying bird was removed; the cursor's map bird circles Dubai / Kerala **continuously** while the pointer is near (2.4 s per loop since the 2026-11-18 refinement) | `src/components/footer/ContactMap.tsx`, `src/lib/mapFlight.ts` |
 | **Global smooth scrolling** — Lenis 1.3.11, one instance, stepped by the GSAP ticker; stopped while `html.zorx-locked` (preloader) | `src/components/providers/SmoothScrollProvider.tsx`, `src/config/scroll.ts`, `src/app/layout.tsx` |
 | **Contact frame open** — only the top (perch) and bottom lines show; side borders transparent (same box, birds unchanged) | `src/components/contact/ContactSection.css` |
 | **Client carousel 25 % faster** — 48 → **60 px/s** | `src/config/clients.ts` |
@@ -241,7 +241,7 @@ Social account URLs are still `null` in `src/config/socials.ts` (never invent th
 
 - **One bird, two renderers** — `src/lib/mapFlight.ts` owns the bird's flight (map units = the artwork's 1037 × 780 viewBox): states `idle · free-flight · approaching · spiral-orbit · stable-orbit · departing`. Drawn by the site cursor's map bird while the mouse is over the map (BirdCursor's `createMapFlight` API is unchanged), otherwise by `.zorx-map-bird` inside the map (office hovered / focused, pin selected, touch). Ownership passes at the bird's current position; handover is an instant swap — never two map birds.
 - **Magnetic spiral** — entry 0.15 / exit 0.205 of the map width (hysteresis); spiral from ≤ 0.14 to 0.05 of the map width over 3 s (2.5 turns, constant angular speed, joins from the bird's own position and turning direction), then a stable circle while the pin stays the goal. Orbit radius compensated for smoothing lag (`√(1+(ωτ)²)`), so the flown radius equals the target. Heading = velocity direction, shortest path, smoothed, turn-rate capped (9 rad/s); slight banking.
-- **Office spotlight** — `src/lib/officeSpotlight.ts`: `active = hover ?? proximity ?? selection`. Mirrored by MapMotion as `.zorx-offices[data-active-office]` (other column → opacity 0.25, 0.45 s), `.zorx-map[data-active]` and the active marker's radar (two thin rings, 2 s). Columns hovered / keyboard-focused activate their office after 120 ms.
+- **Office spotlight** — `src/lib/officeSpotlight.ts`: `active = hover ?? proximity ?? selection`. Mirrored by MapMotion as `.zorx-offices[data-active-office]` (other column → opacity 0.2, 0.5 s), `.zorx-map[data-active]` and the active marker's radar (two thin rings, 2.75 s). Columns hovered / keyboard-focused activate their office after 120 ms; on touch a tap on a column selects it. A change of active office reveals that column's address lines (GSAP, masked) — see "Map refinement" below.
 - **Pins** — invisible 44 px `<button aria-pressed>`s over the markers: click / tap / Enter / Space selects; the other pin switches; an empty map click or Escape clears. Live status text for screen readers.
 - **Tuning** — `src/config/mapInteraction.ts` (fractions of the map width + seconds). Optional trail `enableFlightTrail: false`. Dev-only debug overlay: `?map-debug`.
 - **Reduced motion** — no orbit, pulses or radar animation; highlighting and selection work; the map's bird rests beside the active pin.
@@ -249,4 +249,51 @@ Social account URLs are still `null` in `src/config/socials.ts` (never invent th
 ## SEO foundation (2026-11-18)
 
 See `SEO_AUDIT_AND_IMPLEMENTATION.md`. Key rules: identity / indexing in `src/config/seo.ts`; **`SITE_URL` (build time) is the only source of absolute URLs** — without it the site is noindex; never add a route-level `loading.tsx` to a static page (it hides the content from the server HTML); new pages set their own canonical via the Metadata API and join the sitemap through `published` flags; structured data only with real, visible facts.
+
+## Female Manakin head-turn clip (asset needed)
+
+The contact section's female (`public/images/female-bird.png`) is a single still in a three-quarter, left-facing view. A believable "look right" would show the other side of her face and the area her head now covers, which the still doesn't contain, so it cannot be done by rotating or mirroring a cut-out head (and the brief forbids faking it). The playback path is ready: set `CONTACT_BIRDS.female.motion = { webm, hevc }` in `src/config/contact.ts` and `ContactSection.tsx` → `FemaleMotion` plays it over the still: lazy (600px), only on screen and in a visible tab, never with reduced motion; the still stays underneath as the fallback. (Verified with a temporary test loop in Chrome and WebKit at 1440/820/390: exact overlay, feet error ±0.01px, pause/resume correct.)
+
+Footage required:
+- The same bird, same artwork, locked-off camera: body, wing, tail and feet pixel-identical in every frame; only the head and upper neck move.
+- Loop (≈5.2s): look left = the still's pose (hold 2s) → turn right (0.5–0.7s) → hold 2s → turn back (0.5–0.7s); first frame = last frame = the still.
+- Framing identical to the PNG: 1000 × 1378 canvas (or the same aspect), feet at x≈465, toe curl at y≈1000, so the existing placement numbers stay valid.
+- Source: ProRes 4444 / PNG sequence with alpha, or green screen (then key with `scripts/process-bird-video.mjs`); 24–30fps.
+- Deliverables: `public/videos/contact/female.webm` (VP9 alpha) + `female-hevc.mp4` (HEVC alpha), ~480px wide is enough (displayed ≤170px).
+
+## Map refinement — cinematic pace, office addresses (2026-11-18)
+
+- **Tuning** (`src/config/mapInteraction.ts`, previous values in comments): orbit 0.833 → **0.42 turns/s** (constant on every circle: tighter never spins faster; `orbitRevsPerSecond` replaces `spiralRevolutions`); spiral 3 → 5.25 s; follow τ 0.085 → 0.17 s; new cursor top speed 1.4 map widths/s (≈ 840 px/s desktop); autonomous top speed 2.2 → 1.1; heading τ 0.1 → 0.154 s, max turn 9 → 5.85 rad/s; join / leave τ 0.22 / 0.12 → 0.38 / 0.21 s; radar 2 → 2.75 s; entry / exit / orbit radii unchanged.
+- **Loop** — `mapFlight` now runs on `gsap.ticker`, appended after Lenis's step, so each frame reads the SVG's screen matrix after that frame's scroll (bird–pin distance during Lenis scrolling: 23–36 px before → exactly 30 px). It sleeps when the cursor's bird has settled on a resting pointer (wakes on pointer move, scroll, resize); the map width is cached by a ResizeObserver.
+- **Addresses** — `OFFICES[].address` + `phone` (real, supplied 2026-11-18; the temporary placeholders are gone). The city lines (Dubai, United Arab Emirates / Kerala, India) were removed at ZORX's request: each column is CONTACT, country, address, phone.
+- **Reveal** — MapMotion: when the active office *changes*, its lines rise 12 px into clipping wrappers (0.65 s, stagger 0.09, power2.out). A gap with no office shorter than `defaultStateDelayMs` (450 ms) is not a change. Never per frame, per revolution or per scroll; a new reveal kills the running one and settles every line. Reduced motion: no reveal; highlighting immediate.
+- **Measured** (Chrome, 1440, lab): stable orbit 1.2 → 2.38 s per loop; 200 px pointer jump to 90 % 200 → 417 ms; peak follow 1757 → 840 px/s; autonomous approach to Dubai 1.4 → 2.33 s; reveal count over 6 s of orbit + Lenis scrolling: 1. Known remaining cost: the SVG pin pulses / radar (CSS transform on SVG) cause one small layout per frame while the map is on screen (≈ 3 ms layout + ≈ 9 ms style per second) — unchanged.
+
+## Gravity footer — clipping & collision fix (2026-11-18)
+
+- **Clipping cause** (verified): `.zorx-gravity-stage` had `overflow: clip` — there for the 80 % crop of the letters, but it also cut every object, and the physics ceiling sat exactly on that edge (a drag or hard throw sank bodies into it: up to 181 px cut; up to 68 px at the sides).
+- **Layers**: the letters' SVG now carries the crop itself (`overflow: hidden`, viewBox ends on VIEW_H). The objects live in `.zorx-gravity-play`, which reaches `--room` px up into the empty black above the footer (measured live: from the offices grid's bottom + 12 px to the stage; 175 px at 1440), clips only at its own top, the page edges and the stage bottom (so the document never grows), and is `pointer-events: none` — only the objects take pointers. The physics ceiling follows it (14 px inside). The visibility observer watches this whole layer, so an object up in the black space keeps moving.
+- **Below the letters** (verified): the only thing under the letters was a floor on the crop line, and the drag spring could pull a body through a letter; such bodies ended embedded or under the letters (lowest point down to 148 px below the page bottom). Now: seven convex invisible plugs (`thanksSupports.ts`, scene units — they scale with the artwork) seal the slits and gaps (page edge–T, T–H, H–A + the hollow under the A, A–N, N–K, K–S, S–edge) a little below the letter tops; letters + plugs form the "ground" (`groundAt` heightfield in `gravityWorld.ts`); drag targets are kept inside the walls, under the ceiling and above the ground; the safety floor sits 1.5 units above the page's last line; a body embedded for 3 checks floats up (ghost to the letters, 3.2 units/step) and is solid again once clear. Landing surfaces kept: H's upper cavity, the A's slope, N's and K's diagonals, the S.
+- **Stability**: speed ≤ 30 and spin ≤ 0.4 per 16.7 ms (≤ 15 units per 120 Hz sub-step, thinner than any collider); drawn positions are held inside the walls / ceiling for the sub-step a hard impact sinks a body into them.
+- **Debug** (dev only): `?gravity-debug` — letter parts, plugs, ceiling / floor, ground line, live bodies (red while recovering).
+- **Verified** (Chrome 1440 / 1024 / 820 / 390 / 320, WebKit 1440 / 390; all nine objects thrown up, dragged into every gap, thrown down, swept, flipped mid-flight): max visible clipping 0 (≤ 0.3 px rounding), nothing below the page, nothing deep, page height / width unchanged, H-cavity landing intact; touch drag at 390 doesn't scroll; reduced motion unchanged. Cost: ~11 ms script/s at rest, ~46 ms/s in aggressive play, physics stopped off screen.
+
+## Client carousel — two logos added (2026-11-18)
+
+Halima Trading LLC and Stepvision International Trading LLC (14 logos now). Supplied in colour; converted to the carousel's white-on-transparent style by `scripts/make-client-logo.mjs` from the untouched originals in `assets-src/clients/` (exact commands in the `src/config/clients.ts` header). Halima: alpha kept, every pixel white. Stepvision (gold on an opaque white ground): coverage from the gold's warmth (red − blue), so the white S and the silver V become knockouts in the white disc; its white, grey-outlined subtitle is filled by outline parity (the counters of O / R / D stay open). Sized by eye against the sheet (artwork 76 / 68 px high); placed between compact logos (after Wash Zone; after M10 Resto). Speed unchanged: the duration follows the measured set width (60 px/s).
+
+## Office addresses, phones, socials (2026-11-18)
+
+- `src/config/contact.ts`: UAE — Office No 147, Emarat Atrium, Sheikh Zayed Road - E11 - Dubai, +971 54 396 2660; India — KFC Building 1st Floor, Kunthipuzha, Mannarkkad, Palakkad - 678762, +91 97781 75804 (phones shown grouped, dialled from the digits). No email yet; LET'S TALK opens WhatsApp (below). Non-breaking spaces in an address line mark a run that never wraps (`keepTogether` in OfficesSection renders it nowrap — Safari breaks after a hyphen otherwise).
+- Office text ×1.25 (`.zorx-office` clamp(1.025rem, 1.275vw, 1.25rem); heading likewise).
+- `src/config/socials.ts`: Instagram `https://www.instagram.com/zorx_intreactive_ageny/`, Facebook `https://www.facebook.com/profile.php?id=61594189226842` → links in the THANKS footer and the Organization `sameAs`.
+- Fix: GravityFooter captured the pointer on the icon's `<li>`, so the click after a press was aimed at the `<li>` and a link never opened; it now captures on the `<a>` (a drag's click is still cancelled). Verified Chrome + WebKit: click and Enter open the URL in a new tab, a drag does not.
+
+## Primary CTAs — larger, one shared style (2026-11-18)
+
+VIEW ALL PROJECTS and LET'S TALK share `.zorx-cta-primary` (`globals.css`): `clamp(1.053rem, 2.106vw, 1.8225rem)` = the former VIEW ALL PROJECTS size × 1.35 at every width (29.2 px at 1440, 21.6 at 1024, 16.9 on phones), weight 500, tracking 0.05em, the underline 5.4–6.4 px under the capitals (`--cta-line: calc(0.491em - 5.04px)`, measured Chrome + WebKit), as wide as the text. The hover redraw now also runs on a CTA without a destination (VIEW ALL PROJECTS still has none — no projects page; LET'S TALK opens WhatsApp). BirdCursor treats `a.zorx-cta-primary` as a button (was `a.zorx-work-button`).
+
+## LET'S TALK → WhatsApp (2026-11-18)
+
+`CONTACT_WHATSAPP = "+91 97781 75804"` and `CONTACT_HREF = https://wa.me/919778175804` (`src/config/contact.ts`). ContactSection renders an external `CONTACT_HREF` as `<a target="_blank" rel="noopener noreferrer">` with a screen-reader hint ("— chat on WhatsApp (opens in a new tab)", derived from the URL); an internal one stays a `Link`. Verified Chrome + WebKit: one new tab with the wa.me URL on click and Enter, the site stays open, keyboard focus ring, bird cursor "button" state, unchanged CTA styling.
 

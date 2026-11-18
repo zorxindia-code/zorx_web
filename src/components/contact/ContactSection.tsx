@@ -53,13 +53,21 @@ export default function ContactSection() {
           Interested in working together?
         </h2>
         <div className="zorx-contact-cta-wrap" data-reveal="">
-          {CONTACT_HREF ? (
-            <Link href={CONTACT_HREF} className="zorx-contact-cta">
+          {CONTACT_HREF && /^https?:/.test(CONTACT_HREF) ? (
+            // external (e.g. WhatsApp): a new tab, so the site stays open behind it
+            <a href={CONTACT_HREF} target="_blank" rel="noopener noreferrer" className="zorx-cta zorx-cta-primary zorx-contact-cta">
+              Let&apos;s Talk
+              <span className="sr-only">
+                {/^https:\/\/wa\.me\//.test(CONTACT_HREF) ? " — chat on WhatsApp" : ""} (opens in a new tab)
+              </span>
+            </a>
+          ) : CONTACT_HREF ? (
+            <Link href={CONTACT_HREF} className="zorx-cta zorx-cta-primary zorx-contact-cta">
               Let&apos;s Talk
             </Link>
           ) : (
             // No contact destination yet: shown as designed, not a dead link.
-            <span className="zorx-contact-cta" data-static="">
+            <span className="zorx-cta zorx-cta-primary zorx-contact-cta" data-static="">
               Let&apos;s Talk
             </span>
           )}
@@ -144,7 +152,69 @@ function PerchedBirds({ birds }: { birds: ContactBirds }) {
           sizes="(max-width: 640px) 12vw, (max-width: 1900px) 9vw, 170px"
           draggable={false}
         />
+        {female.motion && <FemaleMotion clip={female.motion} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * The female's optional looping clip (config: CONTACT_BIRDS.female.motion),
+ * laid exactly over her still, which stays underneath as the fallback. Lazy:
+ * no source until the section is near; plays only on screen and while the tab
+ * is visible; shown only once a frame is playing (so no blank flash). Reduced
+ * motion: never loaded — the still remains.
+ */
+function FemaleMotion({ clip }: { clip: { webm: string; hevc: string } }) {
+  const video = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const v = video.current;
+    if (!v || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let loaded = false;
+    let onScreen = false;
+    const load = () => {
+      if (loaded) return;
+      loaded = true;
+      v.src = prefersHevcAlpha() ? clip.hevc : clip.webm;
+      v.preload = "auto";
+    };
+    const sync = () => {
+      if (onScreen && !document.hidden) {
+        load();
+        v.play().catch(() => {});
+      } else v.pause();
+    };
+    const showing = () => (v.dataset.playing = "");
+    const near = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && load(), {
+      rootMargin: "600px 0px",
+    });
+    const seen = new IntersectionObserver((es) => {
+      onScreen = es[es.length - 1].isIntersecting;
+      sync();
+    });
+    v.addEventListener("playing", showing);
+    document.addEventListener("visibilitychange", sync);
+    near.observe(v);
+    seen.observe(v);
+    return () => {
+      near.disconnect();
+      seen.disconnect();
+      v.removeEventListener("playing", showing);
+      document.removeEventListener("visibilitychange", sync);
+      v.pause();
+    };
+  }, [clip]);
+
+  return (
+    <video
+      ref={video}
+      className="zorx-contact-female-video"
+      muted
+      loop
+      playsInline
+      preload="none"
+      disablePictureInPicture
+    />
   );
 }

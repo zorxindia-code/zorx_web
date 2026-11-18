@@ -12,7 +12,7 @@ export default function NotFound() {
     <main className={`zorx-error ${servicesFont.variable}`}>
       <p className="zorx-error-code">404</p>
       <h1 className="zorx-error-title">This page doesn&apos;t exist.</h1>
-      <Link href="/" className="zorx-error-link">
+      <Link href="/" className="zorx-cta zorx-error-link">
         Back to ZORX
       </Link>
     </main>

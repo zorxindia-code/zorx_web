@@ -42,32 +42,9 @@
 .zorx-contact-cta-wrap {
   margin-top: clamp(1.5rem, 3vw, 2.75rem);
 }
+/* LET'S TALK: the shared primary CTA (globals.css .zorx-cta + .zorx-cta-primary) */
 .zorx-contact-cta {
-  display: inline-block;
-  padding: 0.55em 1.4em 0.5em;
-  border: 1px solid #fff;
   color: #fff;
-  font-size: clamp(0.78rem, 1.15vw, 1rem);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-decoration: none;
-  white-space: nowrap;
-}
-a.zorx-contact-cta {
-  transition:
-    background-color 0.4s var(--contact-ease),
-    color 0.4s var(--contact-ease),
-    letter-spacing 0.5s var(--contact-ease);
-}
-a.zorx-contact-cta:hover {
-  background: var(--zorx-ice);
-  color: #000;
-  letter-spacing: 0.11em;
-}
-a.zorx-contact-cta:focus-visible {
-  outline: 1px solid var(--zorx-ice);
-  outline-offset: 4px;
 }
 
 /* ----------------------------------------------------------- perched birds */
@@ -114,6 +91,18 @@ a.zorx-contact-cta:focus-visible {
   user-select: none;
   -webkit-user-drag: none;
 }
+/* optional head-turn clip: same canvas as the still, on top of it, shown once playing */
+.zorx-contact-female-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+.zorx-contact-female-video[data-playing] {
+  opacity: 1;
+}
 @media (max-width: 640px) {
   .zorx-contact-birds {
     --bird-h: 14cqw; /* a little larger on phones, still clear of the headline */
@@ -137,8 +126,7 @@ a.zorx-contact-cta:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .zorx-contact [data-reveal],
-  a.zorx-contact-cta {
+  .zorx-contact [data-reveal] {
     transition: none;
   }
 }

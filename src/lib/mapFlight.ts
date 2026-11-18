@@ -1,3 +1,4 @@
+import { gsap } from "gsap";
 import { MAP_INTERACTION_TUNING as T } from "@/config/mapInteraction";
 import { BIRD_REST, MAP_H, MAP_MARKERS, MAP_W } from "@/lib/contactMap";
 import { spotlight, type OfficeId } from "@/lib/officeSpotlight";
@@ -24,8 +25,13 @@ import { spotlight, type OfficeId } from "@/lib/officeSpotlight";
  *
  * Pointer → map units through the SVG's screen matrix every frame (right under
  * Lenis scrolling and any resize); the pins' artwork coordinates are the only
- * source of truth. One rAF loop, only while the bird is drawn, the map is on
- * screen and the tab visible; time-based, with capped steps.
+ * source of truth. The loop rides GSAP's ticker — the frame Lenis scrolls on —
+ * added after Lenis, so each frame reads the map's position AFTER this frame's
+ * scroll (no one-frame lag, no orbit wobble while scrolling); it runs only while
+ * the bird is drawn, the map is on screen and the tab visible; time-based, with
+ * capped steps. It sleeps once the
+ * cursor's bird has settled on a resting pointer and wakes on pointer moves,
+ * scrolling (Lenis drives the native scroll) and resizes.
  */
 export type MapBirdState = "idle" | "free-flight" | "approaching" | "spiral-orbit" | "stable-orbit" | "departing";
 
@@ -67,8 +73,11 @@ let orbit: { id: OfficeId; theta: number; dir: number; r0: number; t: number } |
 let w = 0; // 0 = following its target, 1 = on the circle
 let near: OfficeId | null = null; // cursor proximity (hysteresis)
 let state: MapBirdState = "idle";
-let raf = 0;
+let want = false; // another frame wanted
+let ticking = false; // on the GSAP ticker
 let last = 0;
+let mapPx = 0; // the map's rendered width (ResizeObserver), for the autonomous bird
+let resize: ResizeObserver | null = null;
 const trail: { x: number; y: number; t: number }[] = [];
 
 const ctm = () => ctx?.svg.getScreenCTM() ?? null;
@@ -80,7 +89,7 @@ const goalNow = (): OfficeId | null => (owner === "cursor" ? near : spotlight.go
 
 // ------------------------------------------------------------------ frame
 function frame(now: number) {
-  raf = 0;
+  want = false;
   if (!ctx || !owner || !onScreen || document.hidden) return;
   const dt = Math.min(0.05, Math.max(0.001, (now - (last || now - 16)) / 1000));
   last = now;
@@ -146,7 +155,7 @@ function frame(now: number) {
     orbit.t += dt;
     const k = easeOut(Math.min(1, orbit.t / T.spiralDuration));
     // constant angular speed: the circle never speeds up as it tightens
-    const omega = (TAU * T.spiralRevolutions) / T.spiralDuration;
+    const omega = TAU * T.orbitRevsPerSecond;
     orbit.theta = wrap(orbit.theta + orbit.dir * omega * dt);
     // the bird trails its point on the circle (smoothing τ) and so flies a smaller
     // circle, by 1/√(1+(ωτ)²) — aim wider by that much, so it flies the true radius
@@ -158,12 +167,13 @@ function frame(now: number) {
   } else state = owner === "auto" && !goal ? "idle" : "free-flight";
   w += (wGoal - w) * approach(dt, joinTau);
 
-  // ----- move: frame-rate independent; the autonomous bird has a top speed
+  // ----- move: frame-rate independent, with a top speed (a mouse flick → a glide)
   const tau = orbit && w > 0.5 ? T.orbitSmoothing : T.positionSmoothing;
   let nx = bird.x + (target.x - bird.x) * approach(dt, tau);
   let ny = bird.y + (target.y - bird.y) * approach(dt, tau);
-  const step = Math.hypot(nx - bird.x, ny - bird.y), cap = U(T.maxSpeed) * dt;
-  if (step > cap && owner === "auto") {
+  const step = Math.hypot(nx - bird.x, ny - bird.y);
+  const cap = U(owner === "auto" ? T.maxSpeed : T.maxCursorSpeed) * dt;
+  if (step > cap) {
     nx = bird.x + ((nx - bird.x) / step) * cap;
     ny = bird.y + ((ny - bird.y) / step) * cap;
   }
@@ -203,7 +213,12 @@ function frame(now: number) {
   }
 
   render(m);
-  schedule();
+  // settled on a resting pointer (no circle, no motion left): sleep until the
+  // pointer moves, the page scrolls or the map resizes
+  const settled =
+    owner === "cursor" && !orbit && w < 0.01 && Math.abs(bird.bank) < 0.005 &&
+    Math.hypot(target.x - bird.x, target.y - bird.y) < 0.25 && Math.hypot(bird.vx, bird.vy) < 1;
+  if (!settled) schedule();
 }
 
 function render(m: DOMMatrix) {
@@ -214,7 +229,7 @@ function render(m: DOMMatrix) {
     const px = m.a * bird.x + m.c * bird.y + m.e, py = m.b * bird.x + m.d * bird.y + m.f;
     cursorEl.style.transform = `translate3d(${px}px, ${py}px, 0) rotate(${bird.heading}rad) scale(${s}, ${s * wings})`;
   } else if (owner === "auto") {
-    const s = ctx.container.clientWidth / MAP_W;
+    const s = (mapPx || ctx.container.clientWidth) / MAP_W;
     ctx.auto.style.transform = `translate3d(${bird.x * s}px, ${bird.y * s}px, 0) rotate(${bird.heading}rad) scale(${s}, ${s * wings})`;
   }
   if (ctx.debug) {
@@ -229,7 +244,25 @@ function render(m: DOMMatrix) {
 }
 
 function schedule() {
-  if (!raf && owner && onScreen && !document.hidden) raf = requestAnimationFrame(frame);
+  if (!owner || !onScreen || document.hidden) return;
+  want = true;
+  if (!ticking) {
+    ticking = true;
+    gsap.ticker.add(tick); // appended: runs after Lenis's step
+  }
+}
+function tick() {
+  frame(performance.now());
+  if (!want && ticking) {
+    gsap.ticker.remove(tick);
+    ticking = false;
+  }
+}
+/** Wake a sleeping loop without a time jump. */
+function wake() {
+  if (want || !owner) return;
+  last = 0;
+  schedule();
 }
 
 function show(next: "cursor" | "auto" | null) {
@@ -294,14 +327,24 @@ export const mapBird = {
   /** MapMotion: the map, its own bird element and the optional trail / debug layers. */
   attach(c: MapContext) {
     ctx = c;
+    mapPx = c.container.clientWidth;
+    resize = new ResizeObserver(() => {
+      mapPx = c.container.clientWidth; // once per resize, not per frame
+      wake();
+    });
+    resize.observe(c.container);
+    window.addEventListener("scroll", wake, { passive: true });
     if (spotlight.goal && owner !== "cursor") startAuto(spotlight.goal);
   },
   detach(c: MapContext) {
     if (ctx !== c) return;
     if (owner === "auto") release();
+    resize?.disconnect();
+    resize = null;
+    window.removeEventListener("scroll", wake);
     ctx = null;
-    cancelAnimationFrame(raf);
-    raf = 0;
+    gsap.ticker.remove(tick);
+    ticking = want = false;
   },
   /** MapMotion: the loop runs only while the map is on screen (and the tab visible). */
   setOnScreen(v: boolean) {
@@ -345,6 +388,7 @@ export function createMapFlight(el: HTMLElement): MapFlight {
     },
     move(x, y) {
       client = { x, y };
+      if (owner === "cursor") wake();
     },
     leave() {
       if (owner !== "cursor") return;

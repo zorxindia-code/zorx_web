@@ -75,12 +75,12 @@ export default function FeaturedWork() {
 
       <div className="zorx-work-more" data-reveal="">
         {ALL_PROJECTS_HREF ? (
-          <Link href={ALL_PROJECTS_HREF} className="zorx-work-button">
+          <Link href={ALL_PROJECTS_HREF} className="zorx-cta zorx-cta-primary zorx-work-button">
             View All Projects
           </Link>
         ) : (
           // No projects page yet: shown as designed, not a dead link.
-          <span className="zorx-work-button" data-static="">
+          <span className="zorx-cta zorx-cta-primary zorx-work-button" data-static="">
             View All Projects
           </span>
         )}

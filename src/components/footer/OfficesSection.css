@@ -22,27 +22,33 @@
 /* ----------------------------------------------------------- columns */
 .zorx-office {
   font-style: normal;
-  font-size: clamp(0.82rem, 1.02vw, 1rem);
+  font-size: clamp(1.025rem, 1.275vw, 1.25rem); /* ×1.25 (was clamp(0.82rem, 1.02vw, 1rem)) */
   line-height: 1.6;
   color: #fff;
   min-width: 0;
-  transition: opacity var(--office-fade, 0.45s) cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity var(--office-fade, 0.5s) cubic-bezier(0.4, 0, 0.2, 1);
 }
 /* Office spotlight (MapMotion): the other office steps back while one is active.
-   Only opacity — no layout change; focus brings any column back to full. */
+   Only opacity — no layout change; touching it (hover / focus) brings it back
+   to full at once, and it then becomes the active office. */
 .zorx-offices[data-active-office="uae"] .zorx-office[data-office="india"],
 .zorx-offices[data-active-office="india"] .zorx-office[data-office="uae"] {
-  opacity: var(--office-dim, 0.25);
+  opacity: var(--office-dim, 0.2);
 }
 .zorx-offices .zorx-office:focus-within {
   opacity: 1;
+}
+@media (hover: hover) {
+  .zorx-offices .zorx-office:hover {
+    opacity: 1;
+  }
 }
 .zorx-office[data-office="india"] {
   color: #8b9097; /* the secondary column, muted */
 }
 .zorx-office-heading {
   margin: 0 0 clamp(0.9rem, 1.6vw, 1.4rem);
-  font-size: clamp(0.78rem, 1.02vw, 0.98rem);
+  font-size: clamp(0.975rem, 1.275vw, 1.225rem); /* ×1.25 (was clamp(0.78rem, 1.02vw, 0.98rem)) */
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -50,8 +56,16 @@
 .zorx-office-address {
   margin: 0 0 1.1em;
 }
-.zorx-office-address span {
+/* masked line: the wrapper clips, the inner span rises into it (MapMotion) */
+.zorx-office-line {
   display: block;
+  overflow: clip;
+}
+.zorx-office-line-in {
+  display: block;
+}
+.zorx-office-nowrap {
+  white-space: nowrap; /* a run joined by non-breaking spaces in config */
 }
 .zorx-office-country {
   margin: 0 0 0.35em;

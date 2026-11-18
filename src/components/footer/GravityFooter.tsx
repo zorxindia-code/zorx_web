@@ -45,11 +45,32 @@ const at = (id: string): CSSProperties => ({ left: `${(START[id].x / SCENE_W) * 
  * transforms; there is no canvas. Reduced motion: the landed composition, still.
  * Without JS (or if the physics fails to load): the designed composition.
  */
+/**
+ * Development overlay (?gravity-debug, dev builds only): letter parts, the gap
+ * plugs, ceiling and safety floor, the ground line, and every live body (red
+ * while it is being recovered). Drawn after each physics frame.
+ */
+function drawDebug(svg: SVGSVGElement, world: GravityWorld | null) {
+  if (!world || !svg.closest("[data-debug]")) return;
+  const d = world.debugShapes();
+  const set = (sel: string, html: string) => {
+    const g = svg.querySelector(`[data-debug="${sel}"]`);
+    if (g && g.innerHTML !== html) g.innerHTML = html;
+  };
+  set("plugs", d.plugs.map((pts) => `<polygon points="${pts}"/>`).join(""));
+  set("walls", d.walls.map((y) => `<line x1="0" x2="${SCENE_W}" y1="${y}" y2="${y}"/>`).join(""));
+  svg.querySelector('[data-debug="ground"]')?.setAttribute("points", d.ground);
+  set("bodies", d.bodies.map((b) => `<polygon points="${b.pts}"${b.rescue ? ' data-rescue=""' : ""}/>`).join(""));
+}
+
 export default function GravityFooter() {
   const stageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stage = stageRef.current!;
+    const play = stage.querySelector<HTMLElement>(".zorx-gravity-play")!;
+    const section = stage.closest<HTMLElement>(".zorx-gravity")!;
+    const debugSvg = stage.querySelector<SVGSVGElement>(".zorx-gravity-debug-live");
     const row = stage.querySelector<HTMLElement>(".zorx-gravity-row")!;
     const els = Array.from(stage.querySelectorAll<HTMLElement>("[data-body]"));
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -63,6 +84,23 @@ export default function GravityFooter() {
       return Object.fromEntries(els.map((el) => [el.dataset.body!, el.dataset.kind === "disc" ? { r } : { w, h }]));
     };
     const scaleNow = () => stage.clientWidth / SCENE_W;
+    /**
+     * The black space above the THANKS stage that the objects may fly into: up
+     * to just below the last content of the section before (the offices), as
+     * --room on the stage (the object layer extends that far up) and as the
+     * physics ceiling — a few px lower, so nothing touches the layer's edge.
+     */
+    const CEIL_INSET = 14; // px between the ceiling and the layer's top (room for a turning card)
+    const measureRoom = () => {
+      const prev = section.previousElementSibling;
+      const above = (prev?.lastElementChild ?? prev) as HTMLElement | null;
+      const top = stage.getBoundingClientRect().top;
+      const room = Math.max(parseFloat(getComputedStyle(section).paddingTop) || 0, above ? top - above.getBoundingClientRect().bottom - 12 : 0);
+      stage.style.setProperty("--room", `${Math.round(room)}px`);
+      return Math.round(room);
+    };
+    let room = measureRoom();
+    const ceilingNow = () => -(room - CEIL_INSET) / scaleNow();
 
     // Reduced motion: the landed composition, placed once (CSS keeps it in scale).
     if (reduce) {
@@ -104,7 +142,8 @@ export default function GravityFooter() {
           const s = scaleNow();
           const z = sizes(s);
           const objects: GravityObject[] = els.map((el) => ({ id: el.dataset.body!, kind: el.dataset.kind as "disc" | "capsule", el, ...z[el.dataset.body!] }));
-          world = createGravityWorld(M, objects);
+          world = createGravityWorld(M, objects, debugSvg ? () => drawDebug(debugSvg, world) : undefined);
+          world.setCeiling(ceilingNow());
           // Hand the objects over from CSS placement to transforms — same pixels.
           for (const el of els) {
             el.style.left = "0";
@@ -148,19 +187,23 @@ export default function GravityFooter() {
       onScreen = es[es.length - 1].isIntersecting;
       run();
     });
-    visible.observe(stage);
+    visible.observe(play); // the whole flight space, so an object up in the black space keeps moving
     const onVisibility = () => run();
     document.addEventListener("visibilitychange", onVisibility);
 
     let lastW = stage.clientWidth;
     const ro = new ResizeObserver(() => {
       const w = stage.clientWidth;
+      room = measureRoom();
+      world?.setCeiling(ceilingNow());
       if (!world || Math.abs(w - lastW) < 1) return;
       lastW = w;
       const s = scaleNow();
       world.setScale(s, sizes(s));
+      world.setCeiling(ceilingNow());
     });
     ro.observe(stage);
+    if (section.previousElementSibling) ro.observe(section.previousElementSibling);
 
     // ---------------------------------------------------------------- pointer
     const toScene = (e: PointerEvent) => {
@@ -193,7 +236,11 @@ export default function GravityFooter() {
       if (!el || !world?.released || e.button > 0) return;
       if (!world.grab(e.pointerId, el.dataset.body!, toScene(e), e.timeStamp)) return;
       presses.set(e.pointerId, { x: e.clientX, y: e.clientY, t: e.timeStamp, el, moved: false });
-      el.setPointerCapture(e.pointerId);
+      // Capture on the link itself when the object is one: the click that follows
+      // a press is aimed at the capturing element, so captured on the <li> it would
+      // never reach the <a> and the link would not open. (A drag's click is still
+      // cancelled below.)
+      (el.querySelector<HTMLElement>("a[href]") ?? el).setPointerCapture(e.pointerId);
       el.dataset.grabbed = "";
     };
     const onUp = (e: PointerEvent) => {
@@ -279,21 +326,33 @@ export default function GravityFooter() {
         style={{ "--scene-w": SCENE_W, "--scene-h": VIEW_H } as CSSProperties}
       >
         <span className="zorx-gravity-row" aria-hidden="true" />
+        {/* Layer 1 — the letters, cropped at the page's last line (their own clip) */}
         <svg className="zorx-gravity-letters" viewBox={`0 0 ${SCENE_W} ${VIEW_H}`} aria-hidden="true" focusable="false">
           {LETTERS.map((l) => (
             <path key={l.id} d={l.d} />
           ))}
-          {debug && (
-            <g className="zorx-gravity-debug">
-              {LETTERS.flatMap((l) =>
-                l.parts.map((p, i) => (
-                  <polygon key={`${l.id}${i}`} points={p.reduce<string[]>((s, v, j) => (j % 2 ? s : [...s, `${v},${p[j + 1]}`]), []).join(" ")} />
-                )),
-              )}
-            </g>
-          )}
         </svg>
 
+        {/* Layer 2 — the objects: a layer reaching up into the black space above the
+            footer (--room), clipped only at the page edges and its own top; the
+            inner frame keeps the stage's coordinates. Only the objects take pointers. */}
+        <div className="zorx-gravity-play">
+          <div className="zorx-gravity-frame">
+            {debug && (
+              <svg className="zorx-gravity-debug-live" viewBox={`0 0 ${SCENE_W} ${VIEW_H}`} aria-hidden="true" focusable="false">
+                <g className="zorx-gravity-debug-letters">
+                  {LETTERS.flatMap((l) =>
+                    l.parts.map((p, i) => (
+                      <polygon key={`${l.id}${i}`} points={p.reduce<string[]>((s, v, j) => (j % 2 ? s : [...s, `${v},${p[j + 1]}`]), []).join(" ")} />
+                    )),
+                  )}
+                </g>
+                <g data-debug="plugs" />
+                <g data-debug="walls" />
+                <polyline data-debug="ground" />
+                <g data-debug="bodies" />
+              </svg>
+            )}
         <ul className="zorx-gravity-socials" aria-label="ZORX on social media">
           {SOCIALS.map((s) => {
             const style = { ...at(s.id), "--bg": s.bg, "--fg": s.fg } as CSSProperties;
@@ -341,6 +400,8 @@ export default function GravityFooter() {
             <span className="sr-only"> — thank you in {g.language}</span>
           </button>
         ))}
+          </div>
+        </div>
       </div>
     </section>
   );

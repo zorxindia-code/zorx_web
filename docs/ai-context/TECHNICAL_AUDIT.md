@@ -39,7 +39,7 @@ Nothing was modified during this audit.
 
 ## 3. SEO and accessibility
 
-**SEO — update 2026-11-18:** implemented; see `SEO_AUDIT_AND_IMPLEMENTATION.md`. Metadata, canonical, Open Graph / X cards, sitemap, robots, Organization / WebSite / Service JSON-LD, branded 404 / error, and the content is now visible in the server HTML (route `loading.tsx` removed). The site is indexable only when `SITE_URL` is set at build. LocalBusiness is still pending office details.
+**SEO — update 2026-11-18:** implemented; see `SEO_AUDIT_AND_IMPLEMENTATION.md`. Metadata, canonical, Open Graph / X cards, sitemap, robots, Organization / WebSite / Service JSON-LD, branded 404 / error, and the content is now visible in the server HTML (route `loading.tsx` removed). The site is indexable only when `SITE_URL` is set at build. LocalBusiness: the office addresses / phones now exist (2026-11-18) — ready to add on approval.
 
 **Semantics [V-code]:**
 - One `<h1>` (sr-only "ZORX" in the intro), an `<h2>` per section, and `<h3>` for cards and office columns.
@@ -96,7 +96,7 @@ Nothing was modified during this audit.
 
 | ID | Issue | File(s) | Severity | Root cause | Recommended solution | Impact | Dependencies | Modification risk |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| E1 | No contact details; LET'S TALK is not a link | `src/config/contact.ts` (`OFFICES`, `CONTACT_HREF`) | **High** | Real details never supplied | Fill `OFFICES[].address/phone/email`; LET'S TALK auto-links to the first email (or set `CONTACT_HREF`) | Primary conversion path works | Business info | Low (config only) |
+| E1 | ~~No contact details; LET'S TALK is not a link~~ — **done** 2026-11-18: addresses + phones in, LET'S TALK opens WhatsApp; email still missing | `src/config/contact.ts` (`OFFICES`, `CONTACT_HREF`) | Low | — | Add an email when available | — | Business info | Low (config only) |
 | E2 | Featured Work has placeholder images and no project links; "View All Projects" inert | `src/config/work.ts` | **High** | No project media or pages yet | Add `image` and `href` per project; set `ALL_PROJECTS_HREF`; build project routes | Portfolio credibility | Project content, new routes | Low (config) / Medium (new routes) |
 | E3 | ~~Minimal SEO~~ — **done** 2026-11-18; only `SITE_URL` (production domain) remains | `src/config/seo.ts`, `src/app/*` | — | — | Set `SITE_URL` at the production build | — | Production domain | Low |
 | E4 | ~~Unused original media deployed publicly~~ — **done** (moved to `assets-src/`; `public/` 148 → 52 MB) | — | — | — | — | — | — | — |
@@ -114,7 +114,7 @@ Nothing was modified during this audit.
 | O4 | Global `cursor: none !important` while the bird cursor is active | `src/components/ui/BirdCursor.css:107` | Low | Design choice | Consider keeping the native cursor for text inputs if forms are added | Low |
 | O5 | Intro minimum 2 s scroll lock | `src/config/brand.ts:102` | Low–Medium | Choreography | Measure LCP and interactivity; consider reducing it if metrics suffer | Low (tuning) |
 | O6 | Tablet/landscape and ≥2560 px not systematically verified | — | Low | Not tested | Add a viewport test pass | None |
-| O7 | ~~Footer future parts~~ — **done** (GravityFooter); social URLs still `null` | `src/config/socials.ts` | Low | Content not supplied | Add the account URLs | None |
+| O7 | ~~Footer future parts~~ — **done** (GravityFooter); Instagram + Facebook URLs set (2026-11-18); WhatsApp, LinkedIn, X still `null` | `src/config/socials.ts` | Low | Content not supplied | Add the remaining account URLs | None |
 | O8 | No analytics | — | Low | Not implemented | Add a privacy-friendly analytics script | Low |
 | O9 | Duplicate reveal logic | `FeaturedWork.tsx`, `ContactSection.tsx` | Low | Incremental build | Extract a small `useReveal` hook only if a third use appears | Low |
 | O10 | Contact headline copy uncertain ("Interested in working together?" vs "READY TO BE IMPRESSED?") | `ContactSection.tsx` | Low | Conflicting briefs | Confirm with stakeholder | None |

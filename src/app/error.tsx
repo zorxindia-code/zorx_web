@@ -12,10 +12,10 @@ export default function Error({ reset }: { error: Error & { digest?: string }; r
       <p className="zorx-error-code">Error</p>
       <h1 className="zorx-error-title">Something went wrong.</h1>
       <div className="zorx-error-actions">
-        <button type="button" className="zorx-error-link" onClick={() => reset()}>
+        <button type="button" className="zorx-cta zorx-error-link" onClick={() => reset()}>
           Try again
         </button>
-        <Link href="/" className="zorx-error-link">
+        <Link href="/" className="zorx-cta zorx-error-link">
           Back to ZORX
         </Link>
       </div>

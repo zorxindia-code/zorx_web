@@ -72,7 +72,7 @@ These rules apply to any AI assistant (ChatGPT, Claude, Copilot, …) working on
 - The bird cursor (difference blend) and its map mode.
 - The loaders: `loading_sun.png` spinning around the **stationary** bird. Never add another logo or orbiting icon.
 - The traced map: exact artwork colours and shapes, Dubai and Kerala pins; **one bird only** — its flight lives in `lib/mapFlight.ts` and is drawn by either the cursor or `.zorx-map-bird`, never both; active office via `lib/officeSpotlight.ts` only; tuning in `config/mapInteraction.ts`.
-- The THANKS gravity footer: traced letters = colliders (regenerate with `scripts/trace-thanks.mjs`), the A leaning on N, the 80 % crop, the outer-physics / inner-flip card layers.
+- The THANKS gravity footer: traced letters = colliders (regenerate with `scripts/trace-thanks.mjs`), the A leaning on N, the 80 % crop, the outer-physics / inner-flip card layers. The crop is the letters' **own** SVG clip — never put `overflow` back on `.zorx-gravity-stage` (it would cut thrown objects); objects live in `.zorx-gravity-play`. If the letters are re-traced, re-check the gap plugs in `src/lib/footer/thanksSupports.ts` with `?gravity-debug` (dev).
 - The open contact frame (top and bottom lines only).
 - The manakins on the contact frame (males left with a seamless loop, female right).
 - Reduced-motion behaviour everywhere.

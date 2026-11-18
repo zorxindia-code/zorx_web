@@ -32,7 +32,7 @@ import "./BirdCursor.css";
 const HOTSPOT = { x: 253 / 540, y: 148 / 266 };
 
 const CARD = ".zorx-work-card";
-const BUTTON = 'button, [role="button"], input[type="submit"], input[type="button"], a.zorx-work-button';
+const BUTTON = 'button, [role="button"], input[type="submit"], input[type="button"], a.zorx-cta-primary';
 const LINK = "a[href], label, summary, select, input, textarea";
 
 export function BirdCursor() {
