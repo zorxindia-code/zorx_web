@@ -49,6 +49,7 @@ These rules apply to any AI assistant (ChatGPT, Claude, Copilot, …) working on
 
 - **GSAP** for scroll-scrubbed or orchestrated motion (ScrollTrigger, SplitText registered where used). Clean up on unmount (`tl.kill()`, `scrollTrigger.kill()`, listeners) — every existing effect does.
 - **Any new ScrollTrigger below the intro must wait for `.zorx-stage[data-ready]`.** Follow `VisionSection.tsx`'s MutationObserver pattern; otherwise its start/end are measured without the intro's pin spacing.
+- **Smooth scrolling is Lenis** (`SmoothScrollProvider`, options in `src/config/scroll.ts`). There is exactly one instance; it is stepped by `gsap.ticker` (never add another rAF loop or `autoRaf`), feeds `ScrollTrigger.update`, and is stopped while `<html>` has `zorx-locked`. Don't add CSS `scroll-behavior: smooth`, a scroller proxy or a scroll wrapper. Programmatic scrolling: `window.scrollTo` still works (Lenis follows the native scroll).
 - **CSS keyframes / transitions** for simple loops and reveals. Use **IntersectionObserver** for once-only reveals (the Work / Contact pattern). Pause anything off-screen.
 - **No per-frame React state.** Write transforms or styles directly (rAF, rVFC).
 - Animate only `transform`, `opacity` and SVG stroke/mask properties. Don't animate layout properties.
@@ -70,7 +71,9 @@ These rules apply to any AI assistant (ChatGPT, Claude, Copilot, …) working on
 - The 1px dividers, the outlined → solid service label hover, and the Ice Blue Services background.
 - The bird cursor (difference blend) and its map mode.
 - The loaders: `loading_sun.png` spinning around the **stationary** bird. Never add another logo or orbiting icon.
-- The traced map: exact artwork colours and shapes, Dubai and Kerala pins, the bird flying India → UAE.
+- The traced map: exact artwork colours and shapes, Dubai and Kerala pins; **one bird only** — its flight lives in `lib/mapFlight.ts` and is drawn by either the cursor or `.zorx-map-bird`, never both; active office via `lib/officeSpotlight.ts` only; tuning in `config/mapInteraction.ts`.
+- The THANKS gravity footer: traced letters = colliders (regenerate with `scripts/trace-thanks.mjs`), the A leaning on N, the 80 % crop, the outer-physics / inner-flip card layers.
+- The open contact frame (top and bottom lines only).
 - The manakins on the contact frame (males left with a seamless loop, female right).
 - Reduced-motion behaviour everywhere.
 

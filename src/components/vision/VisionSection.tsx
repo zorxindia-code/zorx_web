@@ -192,6 +192,7 @@ export default function VisionSection() {
       split = SplitText.create(copy, {
         type: "lines",
         mask: "lines",
+        aria: "none", // whole words stay plain text in line spans — readable as is (no aria-label on a <p>)
         linesClass: "zorx-vision-copy-line",
         autoSplit: true, // re-splits on resize / font load → onSplit rebuilds
         onSplit: build,

@@ -24,7 +24,7 @@ export const ASSETS = {
   logoBlackSymbol: "/logo/zorx-logo-black-without-text.png",
 
   /**
-   * Cinematic intro bird — derived from /videos/Loading.mp4 (original untouched):
+   * Cinematic intro bird — derived from assets-src/videos/Loading.mp4 (original untouched):
    * the original black bird and motion on the logo's Ice Blue (#E9F5FF) background,
    * 720², 4.0 s @ 29.97 fps, keyframe every 2 frames so the scroll-scrubbed settle
    * is cheap. Only the background level differs from the original. It is encoded

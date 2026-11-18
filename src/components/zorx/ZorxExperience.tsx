@@ -174,7 +174,7 @@ export default function ZorxExperience() {
 
   return (
     <div ref={root}>
-      <h1 className="sr-only">ZORX</h1>
+      <h1 className="sr-only">ZORX — Interactive Agency</h1>
 
       {/* The one pinned section. ScrollTrigger adds the scroll distance (pin spacing). */}
       <section ref={stage} className="zorx-stage" aria-label="ZORX showreel">

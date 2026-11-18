@@ -4,10 +4,11 @@
 
 | Category | Items |
 | --- | --- |
-| **Completed** | Intro preloader (sun spinner) and scroll story (bird → O, synchronized Z/O/X, tagline, showreel morph); showreel lazy playback; Vision section (slowed, cinematic scrub); Services with 4 perching birds and the peacock grip; client marquee; Featured Work layout; contact frame with looping manakins and the female; Offices section with the traced map, flight animation, pins and map-bird cursor; global bird cursor; route/showreel loader; reduced-motion support; responsive layouts |
+| **Completed** | Intro preloader (sun spinner) and scroll story (bird → O, synchronized Z/O/X, tagline, showreel morph); showreel lazy playback; Vision section (slowed, cinematic scrub); Services with 4 perching birds and the peacock grip; client marquee; Featured Work layout; contact frame with looping manakins and the female; Offices section with the traced map, pins and the single map-bird cursor; global bird cursor; route/showreel loader; reduced-motion support; responsive layouts |
 | **Partially implemented** | Featured Work (no images or links); LET'S TALK (no destination); Offices (no address / phone / email) |
 | **Placeholder** | "Website" service bird (demo woodpecker); project placeholders using client logos |
-| **In progress** | Footer: Contact and Map done; social icons and the large "THANKS" with multilingual speech bubbles planned (`SiteFooter.tsx` comments) |
+| **Done since the audit** | THANKS gravity footer (social icons + flip cards, Matter.js); single continuous map bird; Lenis smooth scrolling; open contact frame; carousel 60 px/s |
+| **Waiting on content** | Social account URLs (`src/config/socials.ts`); original THANKS vector (currently traced from the reference) |
 | **Not implemented** | Header/navigation, project pages, SEO/OG/sitemap/robots, analytics, 404/error pages, contact form, tests/CI |
 | **Broken** | None known (lint, types and build pass) |
 
@@ -22,15 +23,15 @@ There are no TODO/FIXME comments in the source; placeholders are documented in c
 4. Commit the current work in logical commits.
 
 ### Phase 2 — Production readiness
-1. SEO: `metadataBase`, Open Graph/Twitter metadata, `app/opengraph-image`, `app/sitemap.ts`, `app/robots.ts`, Organization/LocalBusiness JSON-LD with the two offices.
-2. `not-found.tsx` and `error.tsx` in the brand style.
-3. Move source media out of `public/` (`bird-videos/`, `Loading.mp4`) and remove the boilerplate SVGs and unused fonts.
+1. ~~SEO foundation~~ — **done** (see `SEO_AUDIT_AND_IMPLEMENTATION.md`): metadata, canonical, Open Graph / X cards + share image, sitemap, robots, Organization / WebSite / Service JSON-LD, content visible in server HTML. Remaining: set `SITE_URL` at launch; LocalBusiness markup once office details exist.
+2. ~~`not-found.tsx` and `error.tsx`~~ — **done**.
+3. ~~Move source media out of `public/`~~ — **done** (`assets-src/`, public 148 → 52 MB).
 4. Choose a host (Vercel is likely [Inferred]) and set cache headers for `/videos/**`.
 5. Run `npm audit` and a Lighthouse pass. Record LCP, CLS and interactivity; tune `TUNING.loadingMinMs` if needed.
 
 ### Phase 3 — Features
 1. Project pages (`app/work/[slug]/page.tsx`) and an "All projects" page, reusing the FeaturedWork card styles.
-2. Footer completion: social icons, then "THANKS" with multilingual speech bubbles, as new sections inside `SiteFooter`.
+2. ~~Footer completion~~ — done (GravityFooter); remaining: social URLs, optionally the original THANKS vector export.
 3. Navigation: a minimal header (logo + LET'S TALK) that appears after the intro pin and never fights the pinned stage.
 4. Final "Website" service bird footage, processed with `scripts/process-bird-video.mjs`.
 5. Optional contact form. It would need an API route or form service and env vars, and must not hide the native cursor in inputs.

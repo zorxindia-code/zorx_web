@@ -31,7 +31,9 @@
 | React / React DOM | **19.3.0** |
 | TypeScript | 5.9.3, `strict: true`, alias `@/*` → `src/*` |
 | Styling | **Tailwind CSS 4.3.3** via `@tailwindcss/turbopack` (only a little utility use) + **plain global CSS** (`globals.css`) + **component-scoped plain CSS files** imported by components |
-| Animation | **GSAP 3.15.1** (ScrollTrigger, SplitText) + `@gsap/react` 2.1.2 (`useGSAP` in the intro); CSS keyframes; SVG SMIL; `requestAnimationFrame`; `requestVideoFrameCallback`; IntersectionObserver |
+| Animation | **GSAP 3.15.1** (ScrollTrigger, SplitText) + `@gsap/react` 2.1.2 (`useGSAP` in the intro); CSS keyframes; `requestAnimationFrame`; `requestVideoFrameCallback`; IntersectionObserver |
+| Smooth scrolling | **Lenis 1.3.11** — one instance, stepped by `gsap.ticker` (`SmoothScrollProvider`) |
+| Physics | **Matter.js 0.20.0** (+ `@types/matter-js`) — THANKS footer only, lazy-loaded |
 | Fonts | Outfit (local variable TTF via `next/font/local`), Jost 500 (`next/font/google`) |
 | Lint | ESLint 9 + `eslint-config-next` 16.4.6 (core-web-vitals + typescript) |
 | Package manager | npm (`package-lock.json`) |
@@ -55,11 +57,12 @@
 </main>
 <SiteFooter>
   ContactSection     – "Interested in working together?" + LET'S TALK; 3 Blue Manakins (video) + female (image) on the frame
-  OfficesSection     – UAE / India contact columns + traced map with animated bird, pins, map-bird cursor
+  OfficesSection     – UAE / India contact columns + traced map with pins and the map-bird cursor
+  GravityFooter      – social icons + multilingual flip cards falling onto the outlined THANKS (Matter.js)
 </SiteFooter>
 ```
 
-Global: `BirdCursor` (custom cursor) is mounted in `src/app/layout.tsx`. The route-level `src/app/loading.tsx` shows the loader.
+Global: `SmoothScrollProvider` (Lenis) and `BirdCursor` (custom cursor) are mounted in `src/app/layout.tsx`. The route-level `src/app/loading.tsx` shows the loader.
 
 There is **no header/navigation, no other route, no 404/error page**. [V-code]
 
@@ -84,7 +87,7 @@ Full detail: `DESIGN_SYSTEM.md`.
 | **Completed** | Cinematic scroll intro, showreel; Vision animation; Services bird perching (4 birds); client marquee; contact frame with manakins; map with flight, pins and map-bird cursor; custom cursor; loaders (intro sun, route/showreel sun); reduced-motion support; responsive layouts |
 | **Partially implemented** | Featured Work (layout done, **placeholder images, no links**); Contact (LET'S TALK shown but **not linked**); Offices (**no address / phone / email** — only "CONTACT" + country) |
 | **Placeholder / temporary** | "Website" service bird is a temporary demo clip (a woodpecker from `branding.mp4`); project cards use client logos as placeholders |
-| **Not implemented** | Navigation/header; project pages / "all projects" route; social-media icons and the "THANKS" footer (planned); SEO/OG/sitemap/robots; analytics; contact form; 404/error pages; tests/CI |
+| **Not implemented** | Navigation/header; project pages / "all projects" route; social account URLs (icons built, links `null`); SEO/OG/sitemap/robots; analytics; contact form; 404/error pages; tests/CI |
 | **Broken** | Nothing known to be broken at the time of audit (lint, `tsc` and the production build pass) [V-code / V-build] |
 
 ## 6. How the parts communicate
@@ -127,3 +130,25 @@ The exact command for each processed clip is in comments in `src/config/services
 - `DEVELOPMENT_ROADMAP.md` — what to build next
 - `AI_DEVELOPMENT_RULES.md` — how an AI assistant must work in this repository
 - `CHATGPT_HANDOVER.md` — everything above in one self-contained file
+
+## Updates since the 2026-11-18 audit (all verified in the browser)
+
+| Change | Where |
+| --- | --- |
+| **THANKS gravity footer** — 5 social icons + 4 multilingual flip cards fall onto the outlined THANKS (Matter.js 0.20.0, lazy-loaded); letters traced from the reference into convex colliders; the A leans 3.2° on N; page ends at 80 % of the letters' height; drag / throw / knock; cards flip (rotateY) on click / tap / Enter / Space | `src/components/footer/GravityFooter.tsx/.css`, `src/lib/footer/{gravityWorld,thanksScene}.ts`, `src/config/socials.ts`, `scripts/trace-thanks.mjs` |
+| **Map: one bird** — the map's own flying bird was removed; the cursor's map bird circles Dubai / Kerala **continuously** while the pointer is near (2.6 s per loop) | `src/components/footer/ContactMap.tsx`, `src/lib/mapFlight.ts` |
+| **Global smooth scrolling** — Lenis 1.3.11, one instance, stepped by the GSAP ticker; stopped while `html.zorx-locked` (preloader) | `src/components/providers/SmoothScrollProvider.tsx`, `src/config/scroll.ts`, `src/app/layout.tsx` |
+| **Contact frame open** — only the top (perch) and bottom lines show; side borders transparent (same box, birds unchanged) | `src/components/contact/ContactSection.css` |
+| **Client carousel 25 % faster** — 48 → **60 px/s** | `src/config/clients.ts` |
+| Peacock grip line, Z/O/X lockstep intro, sun loader (stationary bird + spinning `loading_sun.png`), slower Vision scrub | see `DESIGN_SYSTEM.md` |
+
+Social account URLs are still `null` in `src/config/socials.ts` (never invent them).
+
+## Interactive Map 2.0 (after the Lenis update)
+
+- **One bird, two renderers** — `src/lib/mapFlight.ts` owns the bird's flight (map units = the artwork's 1037 × 780 viewBox): states `idle · free-flight · approaching · spiral-orbit · stable-orbit · departing`. Drawn by the site cursor's map bird while the mouse is over the map (BirdCursor's `createMapFlight` API is unchanged), otherwise by `.zorx-map-bird` inside the map (office hovered / focused, pin selected, touch). Ownership passes at the bird's current position; handover is an instant swap — never two map birds.
+- **Magnetic spiral** — entry 0.15 / exit 0.205 of the map width (hysteresis); spiral from ≤ 0.14 to 0.05 of the map width over 3 s (2.5 turns, constant angular speed, joins from the bird's own position and turning direction), then a stable circle while the pin stays the goal. Orbit radius compensated for smoothing lag (`√(1+(ωτ)²)`), so the flown radius equals the target. Heading = velocity direction, shortest path, smoothed, turn-rate capped (9 rad/s); slight banking.
+- **Office spotlight** — `src/lib/officeSpotlight.ts`: `active = hover ?? proximity ?? selection`. Mirrored by MapMotion as `.zorx-offices[data-active-office]` (other column → opacity 0.25, 0.45 s), `.zorx-map[data-active]` and the active marker's radar (two thin rings, 2 s). Columns hovered / keyboard-focused activate their office after 120 ms.
+- **Pins** — invisible 44 px `<button aria-pressed>`s over the markers: click / tap / Enter / Space selects; the other pin switches; an empty map click or Escape clears. Live status text for screen readers.
+- **Tuning** — `src/config/mapInteraction.ts` (fractions of the map width + seconds). Optional trail `enableFlightTrail: false`. Dev-only debug overlay: `?map-debug`.
+- **Reduced motion** — no orbit, pulses or radar animation; highlighting and selection work; the map's bird rests beside the active pin.

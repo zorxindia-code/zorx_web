@@ -46,14 +46,17 @@ zorx_web/
    │  ├─ clients/            ClientsSection(.tsx/.css) marquee
    │  ├─ work/               FeaturedWork(.tsx/.css)
    │  ├─ contact/            ContactSection(.tsx/.css) LET'S TALK + manakins
-   │  ├─ footer/             SiteFooter, OfficesSection(.css), ContactMap, MapMotion
+   │  ├─ footer/             SiteFooter, OfficesSection(.css), ContactMap, MapMotion, GravityFooter(.tsx/.css)
+   │  ├─ providers/          SmoothScrollProvider (Lenis, mounted in layout)
    │  └─ ui/                 BirdCursor(.tsx/.css), LoadingIndicator
-   ├─ config/                brand.ts, services.ts, clients.ts, work.ts, contact.ts  ← all content & tuning
+   ├─ config/                brand.ts, services.ts, clients.ts, work.ts, contact.ts, socials.ts, scroll.ts, mapInteraction.ts  ← all content & tuning
    └─ lib/
       ├─ zorx/               layout.ts, timelines.ts, media.ts  (intro maths + GSAP)
       ├─ services/           placement.ts (bird placement), grip.ts (peacock grip line)
+      ├─ footer/             gravityWorld.ts (Matter.js world), thanksScene.ts (GENERATED: letters, colliders, layout)
       ├─ contactMap.ts       GENERATED map data (markers, bird glyph, route)
-      ├─ mapFlight.ts        map-bird cursor behaviour + shared map-flight tuning
+      ├─ mapFlight.ts        THE map bird: flight state machine, spiral orbit, cursor ⇄ map ownership
+      ├─ officeSpotlight.ts  shared active office (hover ?? proximity ?? selection)
       └─ videoSupport.ts     prefersHevcAlpha() (Safari/iOS → HEVC alpha)
 ```
 
@@ -63,8 +66,10 @@ zorx_web/
 | --- | --- | --- |
 | `/` | `src/app/page.tsx` | The only page. Statically prerendered (`○` in build output) |
 | `/icon.png`, `/apple-icon.png` | `src/app/icon.png`, `apple-icon.png` | File-based metadata icons |
-| (loading UI) | `src/app/loading.tsx` | Suspense fallback for route segments |
-| — | — | **No** `not-found.tsx`, `error.tsx`, `robots.ts`, `sitemap.ts`, `opengraph-image`, `/api` |
+| `/robots.txt`, `/sitemap.xml` | `src/app/robots.ts`, `src/app/sitemap.ts` | Production-only crawling + sitemap (`src/config/seo.ts`, `SITE_URL`) |
+| `/opengraph-image`, `/twitter-image` | `src/app/*-image.tsx` | 1200 × 630 share card |
+| (404 / error) | `src/app/not-found.tsx`, `src/app/error.tsx` | Branded; real 404 |
+| — | — | No `loading.tsx` (removed: it hid the static page behind a fallback); no `/api` |
 
 ## 3. Component hierarchy
 
@@ -84,14 +89,16 @@ RootLayout (server)                         src/app/layout.tsx:24
 │  │  └─ FeaturedWork (client)              work/FeaturedWork.tsx:20
 │  └─ SiteFooter (server)  <footer>         footer/SiteFooter.tsx:13
 │     ├─ ContactSection (client)            contact/ContactSection.tsx:22 → PerchedBirds (video + next/image)
-│     └─ OfficesSection (server)            footer/OfficesSection.tsx:12
-│        └─ ContactMap (server)             footer/ContactMap.tsx:18
-│           └─ MapMotion (client)           footer/MapMotion.tsx:13 (SMIL pause/play, touch tap orbit, cursor zone)
+│     ├─ OfficesSection (server)            footer/OfficesSection.tsx:12
+│     │  └─ ContactMap (server)             footer/ContactMap.tsx
+│     │     └─ MapMotion (client)           footer/MapMotion.tsx (pin-pulse pause/play, touch tap orbit, cursor zone)
+│     └─ GravityFooter (client)             footer/GravityFooter.tsx (THANKS + socials + flip cards, Matter.js)
+├─ SmoothScrollProvider (client)            providers/SmoothScrollProvider.tsx (Lenis ↔ gsap.ticker ↔ ScrollTrigger)
 ├─ BirdCursor (client)                      ui/BirdCursor.tsx:38 (uses lib/mapFlight.ts on the map)
 └─ Loading (route fallback)                 app/loading.tsx → LoadingIndicator (ui/LoadingIndicator.tsx:28)
 ```
 
-**Client components (8):** BirdCursor, ZorxExperience, VisionSection, ServicesSection, ClientsSection, FeaturedWork, ContactSection, MapMotion.
+**Client components (10):** BirdCursor, SmoothScrollProvider, ZorxExperience, VisionSection, ServicesSection, ClientsSection, FeaturedWork, ContactSection, MapMotion, GravityFooter.
 
 ## 4. Important files and responsibilities
 

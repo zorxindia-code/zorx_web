@@ -21,6 +21,12 @@ export interface FeaturedProject {
   /** Client logo shown on the placeholder (white on transparent). */
   logo: WorkImage;
   href: string | null;
+  /** Future case-study route: /work/{slug}. */
+  slug: string;
+  /** Only published projects get a page, a sitemap entry and a link. No placeholders. */
+  published: boolean;
+  /** Last real update of the published case study (ISO date) — for the sitemap. */
+  updatedAt?: string;
 }
 
 export const FEATURED_WORK: readonly FeaturedProject[] = [
@@ -30,6 +36,8 @@ export const FEATURED_WORK: readonly FeaturedProject[] = [
     image: null,
     logo: { src: "/clients/boat.webp", width: 97, height: 105 },
     href: null,
+    slug: "boat-seafood-restaurant",
+    published: false,
   },
   {
     id: "pressd",
@@ -37,6 +45,8 @@ export const FEATURED_WORK: readonly FeaturedProject[] = [
     image: null,
     logo: { src: "/clients/pressd-cafe.webp", width: 238, height: 77 },
     href: null,
+    slug: "pressd-cafe",
+    published: false,
   },
   {
     id: "harven",
@@ -44,6 +54,8 @@ export const FEATURED_WORK: readonly FeaturedProject[] = [
     image: null,
     logo: { src: "/clients/harven.webp", width: 219, height: 71 },
     href: null,
+    slug: "harven",
+    published: false,
   },
   {
     id: "cravo",
@@ -51,6 +63,8 @@ export const FEATURED_WORK: readonly FeaturedProject[] = [
     image: null,
     logo: { src: "/clients/crav.webp", width: 213, height: 87 },
     href: null,
+    slug: "cravo-resto-cafe",
+    published: false,
   },
 ];
 

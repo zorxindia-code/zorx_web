@@ -11,7 +11,10 @@ import "./OfficesSection.css";
  */
 export default function OfficesSection() {
   return (
-    <section className={`zorx-offices ${servicesFont.variable}`} aria-label="Contact details">
+    <section className={`zorx-offices ${servicesFont.variable}`} aria-labelledby="zorx-offices-title">
+      <h2 id="zorx-offices-title" className="sr-only">
+        Our offices — Dubai, UAE and Kerala, India
+      </h2>
       <div className="zorx-offices-grid">
         {OFFICES.map((office) => (
           <OfficeColumn key={office.id} office={office} />

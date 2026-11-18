@@ -9,7 +9,7 @@
  * CONTACT_BIRDS — the courtship scene on the frame's top border: three male
  * Blue Manakins (looping clip) to the left, the female (still image) to the
  * right. All values are measured in each asset's own pixels.
- *   Males: from public/videos/bird-videos/bird-dancing-video.mp4 (untouched) via
+ *   Males: from assets-src/videos/bird-videos/bird-dancing-video.mp4 (untouched) via
  *     scripts/process-bird-video.mjs → public/videos/contact/ (transparent
  *     VP9 WebM + HEVC-alpha MP4 + poster; placement from manakins.json):
  *       --name manakins --out public/videos/contact --end 7 --crop 1720:926:132:26

@@ -1,6 +1,6 @@
 /**
  * Client logos for the carousel. Each file in /public/clients is one logo cut
- * from /public/icons/zorx-clients.png (3428×214 sheet, white on transparent;
+ * from assets-src/icons/zorx-clients.png (3428×214 sheet, white on transparent;
  * the sheet itself is untouched): the logo's alpha bounds + 2 px, lossless
  * WebP at its native size. `width` / `height` are those native pixel sizes —
  * every logo is drawn at the same scale, so the balance between logos stays
@@ -29,8 +29,8 @@ export const CLIENT_LOGOS: readonly ClientLogo[] = [
 ];
 
 export const CLIENTS_TUNING = {
-  /** Carousel speed (CSS px per second), the same on every screen size. */
-  speed: 48,
+  /** Carousel speed (CSS px per second), the same on every screen size (48 × 1.25). */
+  speed: 60,
   /** Hover: time to glide to a stop / back up to speed (ms). */
   easeMs: 650,
 } as const;

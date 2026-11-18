@@ -85,7 +85,7 @@ export const SERVICES: readonly Service[] = [
   {
     id: "branding",
     label: "Branding",
-    // Peacock, source public/videos/bird-videos/peacock.mp4 (portrait 1080×1920,
+    // Peacock, source assets-src/videos/bird-videos/peacock.mp4 (portrait 1080×1920,
     // one take, split on the same frame, 5.417 s): enter 0–5.458 s (fly in from the
     // left, land, settle facing forward — the settle at 2×), exit 5.417–10.0 s
     // (wings up, take off, fly left). No perch line in this footage: the perch is
@@ -108,7 +108,7 @@ export const SERVICES: readonly Service[] = [
   {
     id: "website",
     label: "Website",
-    // Temporary demo, source public/videos/bird-videos/branding.mp4:
+    // Temporary demo, source assets-src/videos/bird-videos/branding.mp4:
     // enter 0.8–3.6 s, exit (take-off) 6.792–9.0 s, crop 1240:1040:680:0.
     bird: {
       id: "website",
@@ -121,7 +121,7 @@ export const SERVICES: readonly Service[] = [
   {
     id: "production",
     label: "Production",
-    // Owl, source public/videos/bird-videos/owl.mp4 (one continuous take, split on
+    // Owl, source assets-src/videos/bird-videos/owl.mp4 (one continuous take, split on
     // the same perched frame): enter 0–4.417 s, exit 4.417–7.0 s, crop
     // 1500:1080:0:0, linear key + temporal + line-stabilised, exit top-feathered
     // (the owl climbs out of the source frame). See README for the exact command.
@@ -139,7 +139,7 @@ export const SERVICES: readonly Service[] = [
   {
     id: "marketing",
     label: "Marketing",
-    // Macaw, source public/videos/bird-videos/macaw.mp4: enter 0–3.917 s (fly in from
+    // Macaw, source assets-src/videos/bird-videos/macaw.mp4: enter 0–3.917 s (fly in from
     // the right, land, settle facing forward), exit 4.583–7.0 s (take off, fly right)
     // — two pose-matched resting frames. Crop 1580:1080:340:0 + 150 px transparent
     // canvas below the source, where the tail tip the source frame cuts off is

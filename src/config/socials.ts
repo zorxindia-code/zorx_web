@@ -10,7 +10,7 @@
  * Colours are measured from the supplied design (the footer reference images).
  */
 export type SocialId = "whatsapp" | "linkedin" | "instagram" | "x" | "facebook";
-export type GreetingId = "gracias" | "nanni" | "shukran" | "danke";
+export type GreetingId = "gracias" | "nanni" | "shukran" | "xiexie";
 
 export interface Social {
   id: SocialId;
@@ -22,9 +22,19 @@ export interface Social {
   fg: string;
 }
 
+/**
+ * A greeting card: romanised on the front, the language's own script on the
+ * back (a click / tap / Enter / Space turns it over).
+ */
 export interface Greeting {
   id: GreetingId;
-  text: string;
+  /** Language name, for the accessible label. */
+  language: string;
+  front: string;
+  back: string;
+  /** BCP 47 tag of the back text (font fallback + pronunciation), and its direction. */
+  backLang: string;
+  backDir: "ltr" | "rtl";
   bg: string;
 }
 
@@ -42,10 +52,10 @@ export const SOCIALS: readonly Social[] = [
 ];
 
 export const GREETINGS: readonly Greeting[] = [
-  { id: "gracias", text: "Gracias!", bg: BLUE },
-  { id: "nanni", text: "Nanni!", bg: GREEN },
-  { id: "shukran", text: "Shukran!", bg: RED },
-  { id: "danke", text: "Danke!", bg: ICE },
+  { id: "gracias", language: "Spanish", front: "Gracias!", back: "¡Gracias!", backLang: "es", backDir: "ltr", bg: BLUE },
+  { id: "nanni", language: "Malayalam", front: "Nanni!", back: "നന്ദി", backLang: "ml", backDir: "ltr", bg: GREEN },
+  { id: "shukran", language: "Arabic", front: "Shukran!", back: "شكرًا", backLang: "ar", backDir: "rtl", bg: RED },
+  { id: "xiexie", language: "Chinese", front: "Xièxiè!", back: "谢谢", backLang: "zh-Hans", backDir: "ltr", bg: ICE },
 ];
 
 /**
@@ -64,7 +74,7 @@ export const GRAVITY_TUNING = {
   maxImpact: 16,
   /** Minimum on-screen sizes, so the objects stay legible on phones (px). */
   minIconPx: 34,
-  minLabelPx: 22,
+  minLabelPx: 28, // ≥ 12 px text on phones (legibility)
   /** First landing: soft guide toward the designed resting spot, then removed (s). */
   landingSeconds: 2.6,
 } as const;

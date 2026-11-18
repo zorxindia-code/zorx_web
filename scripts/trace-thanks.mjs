@@ -91,7 +91,8 @@ const big = (o) => o.n > 2000; // icon discs and labels (not the glyph pieces in
 const icons = objA.filter((o) => big(o) && o.cy < 200);
 const labels = objA.filter((o) => big(o) && o.cy >= 200);
 const ICON_ORDER = ["whatsapp", "linkedin", "instagram", "x", "facebook"];
-const LABEL_ORDER = ["gracias", "nanni", "shukran", "danke"];
+// the ice-blue greeting (designed as "Danke!") is the Chinese one now: same slot, same colour
+const LABEL_ORDER = ["gracias", "nanni", "shukran", "xiexie"];
 if (icons.length !== 5 || labels.length !== 4) throw new Error(`found ${icons.length} icons / ${labels.length} labels`);
 const iconR = icons.reduce((s, o) => s + (o.x1 - o.x0 + 1 + o.y1 - o.y0 + 1) / 4, 0) / 5;
 const labelW = labels.reduce((s, o) => s + o.x1 - o.x0 + 1, 0) / 4;
@@ -262,13 +263,31 @@ if (real.length !== 6) throw new Error(`expected 6 letters, found ${real.length}
 
 // ------------------------------------------------------------------ contours (marching squares on the binary mask)
 function contours(inside) {
-  // sample (i, j) = pixel (i-1, j-1); padded by one empty pixel
+  // sample (i, j) = pixel (i-1, j-1); padded by one empty pixel. The mask is
+  // softened (two 3 × 3 box passes) and the edge interpolated at 0.5, so curves
+  // come out smooth (sub-pixel) instead of as pixel steps; straight edges stay straight.
   const Wp = W + 2, Hp = H - TOP + 2;
-  const v = (i, j) => (i >= 1 && j >= 1 && i <= W && j <= H - TOP && inside(i - 1, j - 1 + TOP) ? 1 : 0);
+  let F = new Float32Array(Wp * Hp);
+  for (let j = 1; j < Hp - 1; j++) for (let i = 1; i < Wp - 1; i++) F[j * Wp + i] = inside(i - 1, j - 1 + TOP) ? 1 : 0;
+  for (let pass = 0; pass < 2; pass++) {
+    const G = new Float32Array(Wp * Hp);
+    for (let j = 1; j < Hp - 1; j++) for (let i = 1; i < Wp - 1; i++) {
+      let sum = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) sum += F[(j + dj) * Wp + i + di];
+      G[j * Wp + i] = sum / 9;
+    }
+    F = G;
+  }
+  const val = (i, j) => F[j * Wp + i];
+  const v = (i, j) => (val(i, j) >= 0.5 ? 1 : 0);
   const nH = Wp * Hp;
   const link = new Int32Array(4 * nH).fill(-1), pt = new Float64Array(4 * nH);
   const kH = (i, j) => j * Wp + i, kV = (i, j) => nH + j * Wp + i;
-  const place = (k, i0, j0, i1, j1) => { pt[2 * k] = (i0 + i1) / 2 - 1 + 0.5; pt[2 * k + 1] = (j0 + j1) / 2 - 1 + 0.5 + TOP; };
+  const place = (k, i0, j0, i1, j1) => {
+    const a = val(i0, j0), b = val(i1, j1), t = b !== a ? (0.5 - a) / (b - a) : 0.5;
+    pt[2 * k] = i0 + t * (i1 - i0) - 1 + 0.5;
+    pt[2 * k + 1] = j0 + t * (j1 - j0) - 1 + 0.5 + TOP;
+  };
   const join = (a, b) => { link[2 * a + (link[2 * a] < 0 ? 0 : 1)] = b; link[2 * b + (link[2 * b] < 0 ? 0 : 1)] = a; };
   for (let j = 0; j < Hp - 1; j++) for (let i = 0; i < Wp - 1; i++) {
     const a = v(i, j), b = v(i + 1, j), c = v(i + 1, j + 1), d = v(i, j + 1);
@@ -444,6 +463,50 @@ const POLY_N = {
   holes: [],
 };
 
+// ------------------------------------------------------------------ A leans on N
+// The custom A is turned about its bottom tip, towards N, until its outline
+// rests against N's left edge: the two outlines one stroke width apart
+// (strokes touching, never crossing). Its collision parts are the same turned
+// polygon, and the landing spots on the A turn with it.
+const LEAN_GAP = 1.2; // between the two outline centre lines, scene units (~1.4 px stroke at desktop)
+const segDist = (p, a, b) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+  const t = L2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)) : 0;
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+};
+const edgesOf = (P) => P.map((p, i) => [p, P[(i + 1) % P.length]]);
+const segCross = (p1, p2, p3, p4) => {
+  const d1 = cross3(p3, p4, p1), d2 = cross3(p3, p4, p2), d3 = cross3(p1, p2, p3), d4 = cross3(p1, p2, p4);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+};
+const polyGap = (P, Q) => {
+  for (const [a, b] of edgesOf(P)) for (const [c, d] of edgesOf(Q)) if (segCross(a, b, c, d)) return -1;
+  let m = Infinity;
+  for (const p of P) for (const [a, b] of edgesOf(Q)) m = Math.min(m, segDist(p, a, b));
+  for (const q of Q) for (const [a, b] of edgesOf(P)) m = Math.min(m, segDist(q, a, b));
+  return m;
+};
+const PIVOT = POLY_A.outer.reduce((m, p) => (p[1] > m[1] ? p : m)); // the A's bottom tip
+const turn = (p, th) => {
+  const c = Math.cos(th), sn = Math.sin(th), x = p[0] - PIVOT[0], y = p[1] - PIVOT[1];
+  return [PIVOT[0] + x * c - y * sn, PIVOT[1] + x * sn + y * c];
+};
+let lo = 0, hi = (20 * Math.PI) / 180;
+for (let i = 0; i < 60; i++) {
+  const mid = (lo + hi) / 2;
+  const g = polyGap(POLY_A.outer.map((p) => turn(p, mid)), POLY_N.outer);
+  if (g > LEAN_GAP) lo = mid; else hi = mid;
+}
+const LEAN = lo;
+POLY_A.outer = POLY_A.outer.map((p) => turn(p, LEAN));
+POLY_A.holes = POLY_A.holes.map((h) => h.map((p) => turn(p, LEAN)));
+for (const id of ["nanni", "instagram"]) {
+  const t0 = targets[id], [x, y] = turn([t0.x, t0.y], LEAN);
+  targets[id] = { x: +x.toFixed(1), y: +y.toFixed(1), angle: +(t0.angle + (LEAN * 180) / Math.PI).toFixed(1) };
+}
+const LEAN_DEG = +((LEAN * 180) / Math.PI).toFixed(2);
+const gapNow = polyGap(POLY_A.outer, POLY_N.outer);
+
 const LETTERS = ["T", "H", "A", "N", "K", "S"];
 const FITTED = { A: POLY_A, N: POLY_N };
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -461,7 +524,7 @@ const out = [];
 for (const [n, L] of real.entries()) {
   const id = LETTERS[n];
   // drawn outline: fine; collision: a little coarser (fewer, fatter convex parts)
-  const [outer, holes] = FITTED[id] ? orient(FITTED[id].outer, FITTED[id].holes) : traced(L, id === "S" ? 0.6 : 1.0);
+  const [outer, holes] = FITTED[id] ? orient(FITTED[id].outer, FITTED[id].holes) : traced(L, id === "S" ? 0.3 : 0.8);
   const [cOuter, cHoles] = FITTED[id] ? [outer, holes] : traced(L, id === "S" ? 1.6 : 1.2);
   const fmt = (l) => l.map((p) => p.map(r1));
   const d = [fmt(outer), ...holes.map(fmt)].map((l) => "M" + l.map((p) => `${p[0]} ${p[1]}`).join("L") + "Z").join("");
@@ -470,6 +533,11 @@ for (const [n, L] of real.entries()) {
 }
 
 // ------------------------------------------------------------------ write
+// ------------------------------------------------------------------ crop: the upper 80 % of THANKS is shown
+const ys = out.flatMap((l) => [...l.d.matchAll(/[ML]([\d.]+) ([\d.]+)/g)].map((m) => +m[2]));
+const TYPE_TOP = Math.min(...ys), TYPE_BOTTOM = Math.max(...ys);
+const VIEW_H = r1(TYPE_TOP + 0.8 * (TYPE_BOTTOM - TYPE_TOP));
+
 const ts = `/**
  * GENERATED by scripts/trace-thanks.mjs from the THANKS footer references
  * (scripts/reference/thanks-initial.png / thanks-landed.png). Do not edit by
@@ -478,6 +546,14 @@ const ts = `/**
  */
 export const SCENE_W = ${W};
 export const SCENE_H = ${H};
+/**
+ * The footer shows the scene down to here: the upper 80 % of the THANKS
+ * typography (letters ${r1(TYPE_TOP)}–${r1(TYPE_BOTTOM)}); the page ends on this line and the
+ * letters run on beyond it. Their collision shapes are complete; the floor is here.
+ */
+export const VIEW_H = ${VIEW_H};
+/** The custom A leans on N: turned ${LEAN_DEG}° about its bottom tip (outline gap to N: ${r1(gapNow)}). */
+export const A_LEAN_DEG = ${LEAN_DEG};
 
 /** THANKS letters: outline path (as drawn) and convex collision parts (flat x,y lists). */
 export const LETTERS: readonly { id: string; d: string; parts: readonly (readonly number[])[] }[] = ${JSON.stringify(out)};
@@ -491,4 +567,4 @@ export const START: Record<string, { x: number; y: number }> = ${JSON.stringify(
 export const TARGET: Record<string, { x: number; y: number; angle: number }> = ${JSON.stringify(targets)};
 `;
 writeFileSync("src/lib/footer/thanksScene.ts", ts);
-console.log({ letters: out.map((l) => `${l.id}: ${l.parts.length} parts`), repaired, iconR: r1(iconR), label: [r1(labelW), r1(labelH)], targets });
+console.log({ letters: out.map((l) => `${l.id}: ${l.parts.length} parts`), lean: LEAN_DEG, gapToN: r1(gapNow), crop: [r1(TYPE_TOP), r1(TYPE_BOTTOM), VIEW_H], repaired, iconR: r1(iconR), label: [r1(labelW), r1(labelH)], targets });

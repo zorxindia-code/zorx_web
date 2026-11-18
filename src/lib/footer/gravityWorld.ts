@@ -1,6 +1,6 @@
 import type MatterNS from "matter-js";
 import { GRAVITY_TUNING as T } from "@/config/socials";
-import { LETTERS, SCENE_H, SCENE_W, START, TARGET } from "@/lib/footer/thanksScene";
+import { LETTERS, SCENE_W, START, TARGET, VIEW_H } from "@/lib/footer/thanksScene";
 
 type Matter = typeof MatterNS;
 type Body = MatterNS.Body;
@@ -59,9 +59,11 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
   const t = 400; // thick walls: nothing escapes at speed
   M.Composite.add(world, [
     ...letterBodies,
-    wall(SCENE_W / 2, SCENE_H + t / 2, SCENE_W + 2 * t, t), // floor (the section's bottom edge)
-    wall(-t / 2, SCENE_H / 2, t, SCENE_H + 2 * t),
-    wall(SCENE_W + t / 2, SCENE_H / 2, t, SCENE_H + 2 * t),
+    // floor on the page's last line (the crop): nothing falls out of sight; the
+    // letters' bodies continue below it, complete, as the drawn letters do
+    wall(SCENE_W / 2, VIEW_H + t / 2, SCENE_W + 2 * t, t),
+    wall(-t / 2, VIEW_H / 2, t, VIEW_H + 2 * t),
+    wall(SCENE_W + t / 2, VIEW_H / 2, t, VIEW_H + 2 * t),
     wall(SCENE_W / 2, -t / 2, SCENE_W + 2 * t, t), // ceiling: stays inside the footer
   ]);
 

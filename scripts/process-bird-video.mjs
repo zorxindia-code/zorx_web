@@ -18,14 +18,14 @@
  * Requires ffmpeg with libvpx-vp9 and hevc_videotoolbox (macOS).
  *
  * Usage:
- *   node scripts/process-bird-video.mjs --in public/videos/bird-videos/branding.mp4 \
+ *   node scripts/process-bird-video.mjs --in assets-src/videos/bird-videos/branding.mp4 \
  *     --name website --start 0.8 --end 3.6 --crop 1200:920:720:120 --width 720 \
  *     --erase 1696:856:86:86
  *   Exit (take-off) clip, same crop so both share one coordinate system:
  *   node scripts/process-bird-video.mjs --in … --name website-exit --start 6.792 --end 9 \
  *     --crop 1240:980:680:60 --width 720 --erase 1696:856:86:86 --rest first
  *   Contact section — three Blue Manakins on a pale wire, looping courtship:
- *   node scripts/process-bird-video.mjs --in public/videos/bird-videos/bird-dancing-video.mp4 \
+ *   node scripts/process-bird-video.mjs --in assets-src/videos/bird-videos/bird-dancing-video.mp4 \
  *     --name manakins --out public/videos/contact --end 7 --crop 1720:926:132:26 --width 960 \
  *     --key linear --screen-d 95 --temporal --line-y 847 --line-band 838:856 \
  *     --erase 1696:856:86:86,132:806:334:146,1760:806:92:146 --loop-xfade 14 --loop-slots 796,1130 --loop-dissolve 6 \

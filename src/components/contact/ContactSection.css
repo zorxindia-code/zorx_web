@@ -18,7 +18,12 @@
 .zorx-contact-frame {
   position: relative;
   container-type: inline-size; /* the birds are sized in frame units (cqw) */
+  /* open frame: only the top line (the birds' perch) and the bottom line. The
+     side borders stay 1px wide but transparent, so the frame's box — and the
+     birds sized and placed from it — is exactly as before. */
   border: 1px solid rgb(233 245 255 / 0.55);
+  border-left-color: transparent;
+  border-right-color: transparent;
   padding: clamp(3.5rem, 8vw, 8rem) 1.25rem clamp(3rem, 6.5vw, 6.5rem);
   text-align: center;
 }

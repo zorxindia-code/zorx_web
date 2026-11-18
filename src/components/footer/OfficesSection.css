@@ -26,6 +26,16 @@
   line-height: 1.6;
   color: #fff;
   min-width: 0;
+  transition: opacity var(--office-fade, 0.45s) cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Office spotlight (MapMotion): the other office steps back while one is active.
+   Only opacity — no layout change; focus brings any column back to full. */
+.zorx-offices[data-active-office="uae"] .zorx-office[data-office="india"],
+.zorx-offices[data-active-office="india"] .zorx-office[data-office="uae"] {
+  opacity: var(--office-dim, 0.25);
+}
+.zorx-offices .zorx-office:focus-within {
+  opacity: 1;
 }
 .zorx-office[data-office="india"] {
   color: #8b9097; /* the secondary column, muted */
@@ -128,47 +138,97 @@
     transform: scale(2.5);
   }
 }
-.zorx-map-flight,
-.zorx-map-rest {
-  fill: #000;
-}
-.zorx-map-rest {
-  display: none; /* shown instead of the flight with reduced motion */
-}
-
-/* Touch: one loop round the tapped marker, at the map's own bird scale. */
-.zorx-map-tapbird {
-  position: absolute;
-  width: 0;
-  height: 0;
+/* While an office is active, only its pin speaks: the idle pulses stop and
+   the active pin sends out a thin radar (two rings, transparent inside). */
+.zorx-map[data-active] .zorx-map-pin-pulse {
+  animation: none;
   opacity: 0;
-  pointer-events: none;
 }
-.zorx-map-tapbird svg {
-  position: absolute;
-  left: calc(var(--bx) / 1037 * 100cqw);
-  top: calc(var(--by) / 1037 * 100cqw);
-  width: calc(var(--bw) / 1037 * 100cqw);
-  height: calc(var(--bh) / 1037 * 100cqw);
-  overflow: visible;
-  fill: #000;
+.zorx-map-radar {
+  fill: none;
+  stroke: var(--map-red);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
 }
-.zorx-map-tapbird[data-orbit] {
-  animation: zorx-map-circle var(--orbit-s, 2.1s) cubic-bezier(0.45, 0, 0.55, 1) both;
+.zorx-map[data-playing] [data-active] .zorx-map-radar {
+  animation: zorx-radar var(--radar-s, 2s) cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
 }
-@keyframes zorx-map-circle {
+.zorx-map[data-playing] [data-active] .zorx-map-radar-late {
+  animation-delay: calc(var(--radar-s, 2s) / 2);
+}
+@keyframes zorx-radar {
   0% {
-    opacity: 0;
-    transform: rotate(-90deg) translateX(var(--orbit-r, 6.2cqw)) rotate(90deg);
-  }
-  14%,
-  86% {
-    opacity: 1;
+    opacity: var(--radar-o, 0.4);
+    transform: scale(var(--from));
   }
   100% {
     opacity: 0;
-    transform: rotate(270deg) translateX(var(--orbit-r, 6.2cqw)) rotate(90deg);
+    transform: scale(1);
   }
+}
+
+/* Pins: invisible 44 px buttons over the markers (click / tap / keyboard). */
+.zorx-map-pin-hit {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.zorx-map-pin-hit:focus-visible {
+  outline: 2px solid var(--map-red);
+  outline-offset: -10px;
+}
+
+/* The map's own bird (drawn when the cursor is not on the map — lib/mapFlight.ts). */
+.zorx-map-bird {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform;
+}
+.zorx-map-bird[data-visible="false"] {
+  visibility: hidden;
+}
+.zorx-map-bird svg {
+  position: absolute;
+  overflow: visible;
+  fill: #000;
+}
+.zorx-map-trail {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: 0.25;
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+  vector-effect: non-scaling-stroke;
+}
+.zorx-map-debug {
+  display: none;
+}
+.zorx-map[data-debug] .zorx-map-debug {
+  display: inline;
+  fill: none;
+  stroke: #ff00a8;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.zorx-map-debug text {
+  fill: #ff00a8;
+  stroke: none;
+  font: 600 18px ui-monospace, monospace;
 }
 
 /* ----------------------------------------------------------- responsive */
@@ -187,13 +247,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .zorx-office-link {
+  .zorx-office-link,
+  .zorx-office {
     transition: none;
   }
-  .zorx-map-flight {
-    display: none;
-  }
-  .zorx-map-rest {
-    display: inline;
+  /* selection stays visible without motion: one still radar ring */
+  .zorx-map [data-active] .zorx-map-radar:not(.zorx-map-radar-late) {
+    opacity: var(--radar-o, 0.4);
+    transform: scale(0.6);
   }
 }

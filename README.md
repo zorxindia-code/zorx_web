@@ -72,7 +72,7 @@ If `Loading.mp4` changes, regenerate `loading-bird-ice.mp4` (command in `src/con
 Birds are pre-keyed offline — the browser never chroma-keys:
 
 ```bash
-node scripts/process-bird-video.mjs --in public/videos/bird-videos/<source>.mp4 \
+node scripts/process-bird-video.mjs --in assets-src/videos/bird-videos/<source>.mp4 \
   --name <service> --start <s> --end <s> --crop W:H:X:Y --width 720 [--erase X:Y:W:H]
 ```
 
@@ -89,7 +89,7 @@ Quality flags (opt-in; the Website clips use the original defaults): `--key line
 Current Branding clips: source `bird-videos/peacock.mp4` (portrait 1080×1920, 10 s, one take; the peacock lands in mid-air — there is no perch line in the footage, so the perch is set with `--line-y` where its toes grip):
 
 ```bash
-COMMON="--in public/videos/bird-videos/peacock.mp4 --crop 1080:1300:0:400 --width 720 --line-y 1196 \
+COMMON="--in assets-src/videos/bird-videos/peacock.mp4 --crop 1080:1300:0:400 --width 720 --line-y 1196 \
   --key protect --protect-still --temporal --crf 31 --hevc-q 56 --alpha-quality 0.9"
 node scripts/process-bird-video.mjs $COMMON --name branding-bird      --start 0      --end 5.4583 --speedup 4.0:5.4167:2 --rest last
 node scripts/process-bird-video.mjs $COMMON --name branding-bird-exit --start 5.4167 --end 10                           --rest first
@@ -100,7 +100,7 @@ Split on one frame (5.417 s, the stillest perched frame), so enter and exit meet
 Current Marketing clips: source `bird-videos/macaw.mp4` (one take; the macaw flies in from the top right, lands, rests facing forward, takes off to the right). The source frame's bottom edge cuts the resting macaw's tail (~50 px of tip missing in every rest frame), so the canvas is extended below the source and the tip is rebuilt from a frame of the same take where the whole tail is in shot:
 
 ```bash
-COMMON="--in public/videos/bird-videos/macaw.mp4 --crop 1580:1080:340:0 --pad-bottom 150 \
+COMMON="--in assets-src/videos/bird-videos/macaw.mp4 --crop 1580:1080:340:0 --pad-bottom 150 \
   --tail-ref 2.5 --tail-gain 1.22/1.06/1.25 --width 720 --erase 1694:854:90:90 \
   --key protect --protect-still --temporal --line-pad 6 --line-green --crf 24 --hevc-q 65 --alpha-quality 0.95"
 node scripts/process-bird-video.mjs $COMMON --name marketing      --start 0      --end 3.9167 --rest last  --stabilize

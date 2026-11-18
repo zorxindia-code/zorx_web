@@ -1,24 +1,35 @@
-import { BIRD_REST } from "@/lib/contactMap";
+import { MAP_INTERACTION_TUNING as T } from "@/config/mapInteraction";
+import { BIRD_REST, MAP_H, MAP_MARKERS, MAP_W } from "@/lib/contactMap";
+import { spotlight, type OfficeId } from "@/lib/officeSpotlight";
 
 /**
- * The contact map's bird interactions — shared by the site cursor (mouse) and
- * the map's tap handler (touch). All distances are fractions of the map's
- * rendered width, so the zones scale with the map at every size.
+ * THE contact-map bird — one bird, whoever draws it.
+ *
+ * Its flight (position, velocity, heading, banking, state) lives here, in the
+ * map's own units (the artwork's 1037 × 780 viewBox), and is drawn by exactly
+ * one of two elements at a time:
+ *   cursor — the site cursor's map bird (BirdCursor), while the mouse is over
+ *            the map: the bird flies after the pointer
+ *   auto   — the bird inside the map (MapMotion), while the cursor is NOT on
+ *            the map but an office is the goal (an office column hovered /
+ *            focused, a pin selected — and every touch interaction)
+ * Ownership passes at the bird's current position, so it is never duplicated
+ * and never jumps.
+ *
+ * States: idle → free-flight → approaching → spiral-orbit → stable-orbit, and
+ * departing back to free flight. Near a pin (entry radius; released beyond the
+ * exit radius) the bird is drawn into a spiral around it that starts where the
+ * bird is, turns the way it is already flying, tightens over `spiralDuration`
+ * and then circles on, stable, for as long as the pin stays its goal.
+ *
+ * Pointer → map units through the SVG's screen matrix every frame (right under
+ * Lenis scrolling and any resize); the pins' artwork coordinates are the only
+ * source of truth. One rAF loop, only while the bird is drawn, the map is on
+ * screen and the tab visible; time-based, with capped steps.
  */
-export const MAP_FLIGHT = {
-  /** A marker draws the bird into its circle within this distance of it. */
-  zone: 0.075,
-  /** …and is re-armed once the pointer has moved this far away. */
-  exit: 0.12,
-  /** Radius of the circle flown around a marker — clear of the pin itself. */
-  orbit: 0.062,
-  /** One unhurried loop around the marker (s). */
-  orbitSeconds: 2.1,
-  /** Touch: a tap this close to a marker (or 24 px) sends the bird round it. */
-  tap: 0.09,
-} as const;
+export type MapBirdState = "idle" | "free-flight" | "approaching" | "spiral-orbit" | "stable-orbit" | "departing";
 
-/** Cursor element for the map, driven by the site cursor controller. */
+/** Kept for the site cursor (BirdCursor): its map mode. */
 export interface MapFlight {
   enter(zone: HTMLElement, x: number, y: number): void;
   move(x: number, y: number): void;
@@ -26,116 +37,336 @@ export interface MapFlight {
   destroy(): void;
 }
 
+export interface MapContext {
+  container: HTMLElement;
+  svg: SVGSVGElement;
+  auto: HTMLElement;
+  trail: SVGPolylineElement | null;
+  debug: SVGGElement | null;
+}
+
 const TAU = Math.PI * 2;
-const ease = (t: number) => 0.5 - 0.5 * Math.cos(Math.PI * t); // ease-in-out (sine)
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+const approach = (dt: number, tau: number) => 1 - Math.exp(-dt / tau);
+const easeOut = (t: number) => 1 - (1 - t) ** 3;
+const U = (f: number) => f * MAP_W; // fraction of the map width → map units
+const PINS = MAP_MARKERS as Record<OfficeId, { x: number; y: number }>;
+const IDS = Object.keys(PINS) as OfficeId[];
+
+const reduce = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ------------------------------------------------------------------ state
+let ctx: MapContext | null = null;
+let onScreen = true;
+let cursorEl: HTMLElement | null = null;
+let owner: "cursor" | "auto" | null = null;
+let fading = 0; // auto bird leaving (s left), or 0
+let client: { x: number; y: number } | null = null; // the real pointer (viewport px)
+const bird = { x: 0, y: 0, vx: 0, vy: 0, heading: (BIRD_REST.angle * Math.PI) / 180, bank: 0, known: false };
+let orbit: { id: OfficeId; theta: number; dir: number; r0: number; t: number } | null = null;
+let w = 0; // 0 = following its target, 1 = on the circle
+let near: OfficeId | null = null; // cursor proximity (hysteresis)
+let state: MapBirdState = "idle";
+let raf = 0;
+let last = 0;
+const trail: { x: number; y: number; t: number }[] = [];
+
+const ctm = () => ctx?.svg.getScreenCTM() ?? null;
+const toMap = (px: number, py: number, m: DOMMatrix) => {
+  const inv = m.inverse();
+  return { x: inv.a * px + inv.c * py + inv.e, y: inv.b * px + inv.d * py + inv.f };
+};
+const goalNow = (): OfficeId | null => (owner === "cursor" ? near : spotlight.goal);
+
+// ------------------------------------------------------------------ frame
+function frame(now: number) {
+  raf = 0;
+  if (!ctx || !owner || !onScreen || document.hidden) return;
+  const dt = Math.min(0.05, Math.max(0.001, (now - (last || now - 16)) / 1000));
+  last = now;
+  const m = ctm();
+  if (!m) return schedule();
+  const still = reduce();
+
+  // ----- the pointer, and which pin draws the bird (entry / exit hysteresis)
+  let follow: { x: number; y: number } | null = null;
+  if (owner === "cursor" && client) {
+    follow = toMap(client.x, client.y, m);
+    if (near && Math.hypot(follow.x - PINS[near].x, follow.y - PINS[near].y) > U(T.exitRadius)) near = null;
+    if (!near) {
+      let best: OfficeId | null = null;
+      let bd = U(T.entryRadius);
+      for (const id of IDS) {
+        const d = Math.hypot(follow.x - PINS[id].x, follow.y - PINS[id].y);
+        if (d < bd) {
+          bd = d;
+          best = id;
+        }
+      }
+      near = best;
+    }
+    spotlight.set("proximity", near);
+  }
+  const goal = goalNow();
+
+  // ----- orbit: join / tighten / leave
+  let joinTau: number = T.joinSmoothing;
+  if (goal && !still) {
+    if (orbit && orbit.id !== goal) {
+      // the other pin: break away first, take up the new circle from free flight
+      if (w < 0.15) orbit = null;
+      else joinTau = T.leaveSmoothing;
+    }
+    if (!orbit) {
+      const c = PINS[goal];
+      const dx = bird.x - c.x, dy = bird.y - c.y, dist = Math.hypot(dx, dy) || 1;
+      // turn the way the bird is already flying: sign of (radius × velocity)
+      const dir = dx * bird.vy - dy * bird.vx >= 0 ? 1 : -1;
+      const r0 = Math.min(U(T.initialOrbitRadius), Math.max(U(T.finalOrbitRadius), dist));
+      orbit = { id: goal, theta: Math.atan2(dy, dx), dir, r0, t: 0 };
+    }
+  } else if (orbit && w < 0.02) orbit = null;
+
+  // reduced motion: the map's bird simply rests beside the active pin, facing it
+  if (still && owner === "auto" && goal) {
+    const c = PINS[goal], r = U(T.finalOrbitRadius);
+    bird.x = c.x - r * 0.75;
+    bird.y = c.y - r * 0.66;
+    bird.vx = bird.vy = 0;
+    bird.heading = Math.atan2(c.y - bird.y, c.x - bird.x);
+  }
+
+  let target = follow ?? { x: bird.x, y: bird.y };
+  let wGoal = 0;
+  if (orbit) {
+    const c = PINS[orbit.id];
+    const on = goal === orbit.id && !still;
+    wGoal = on ? 1 : 0;
+    if (!on) joinTau = T.leaveSmoothing;
+    orbit.t += dt;
+    const k = easeOut(Math.min(1, orbit.t / T.spiralDuration));
+    // constant angular speed: the circle never speeds up as it tightens
+    const omega = (TAU * T.spiralRevolutions) / T.spiralDuration;
+    orbit.theta = wrap(orbit.theta + orbit.dir * omega * dt);
+    // the bird trails its point on the circle (smoothing τ) and so flies a smaller
+    // circle, by 1/√(1+(ωτ)²) — aim wider by that much, so it flies the true radius
+    const r = (orbit.r0 + (U(T.finalOrbitRadius) - orbit.r0) * k) * Math.sqrt(1 + (omega * T.orbitSmoothing) ** 2);
+    const o = { x: c.x + Math.cos(orbit.theta) * r, y: c.y + Math.sin(orbit.theta) * r };
+    if (owner === "auto") target = o; // no pointer to blend with: it is the circle
+    else if (follow) target = { x: follow.x + (o.x - follow.x) * w, y: follow.y + (o.y - follow.y) * w };
+    state = !on ? "departing" : w < 0.6 ? "approaching" : orbit.t < T.spiralDuration ? "spiral-orbit" : "stable-orbit";
+  } else state = owner === "auto" && !goal ? "idle" : "free-flight";
+  w += (wGoal - w) * approach(dt, joinTau);
+
+  // ----- move: frame-rate independent; the autonomous bird has a top speed
+  const tau = orbit && w > 0.5 ? T.orbitSmoothing : T.positionSmoothing;
+  let nx = bird.x + (target.x - bird.x) * approach(dt, tau);
+  let ny = bird.y + (target.y - bird.y) * approach(dt, tau);
+  const step = Math.hypot(nx - bird.x, ny - bird.y), cap = U(T.maxSpeed) * dt;
+  if (step > cap && owner === "auto") {
+    nx = bird.x + ((nx - bird.x) / step) * cap;
+    ny = bird.y + ((ny - bird.y) / step) * cap;
+  }
+  bird.vx = (nx - bird.x) / dt;
+  bird.vy = (ny - bird.y) / dt;
+  bird.x = nx;
+  bird.y = ny;
+
+  // ----- face the way it flies: shortest turn, smoothed, rate-capped; bank into turns
+  let turn = 0;
+  if (!still && Math.hypot(bird.vx, bird.vy) > U(0.03)) {
+    const diff = wrap(Math.atan2(bird.vy, bird.vx) - bird.heading);
+    turn = diff * approach(dt, T.rotationSmoothing);
+    const maxTurn = T.maxTurnRate * dt;
+    turn = Math.max(-maxTurn, Math.min(maxTurn, turn));
+    bird.heading = wrap(bird.heading + turn);
+  }
+  const bankGoal = Math.max(-1, Math.min(1, turn / dt / 6));
+  bird.bank += (bankGoal - bird.bank) * approach(dt, 0.15);
+
+  // ----- optional trail
+  if (T.enableFlightTrail && ctx.trail && !still) {
+    trail.push({ x: bird.x, y: bird.y, t: now });
+    while (trail.length && now - trail[0].t > T.flightTrailLifetime * 1000) trail.shift();
+    ctx.trail.setAttribute("points", trail.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "));
+  }
+
+  // ----- the autonomous bird leaves when its goal is gone
+  if (owner === "auto" && !goal) {
+    fading = fading || 0.45;
+    fading = Math.max(0, fading - dt);
+    ctx.auto.style.opacity = String(fading / 0.45);
+    if (fading <= 0) return release();
+  } else if (owner === "auto") {
+    fading = 0;
+    ctx.auto.style.opacity = "1";
+  }
+
+  render(m);
+  schedule();
+}
+
+function render(m: DOMMatrix) {
+  if (!ctx) return;
+  const wings = 1 - T.bank * Math.abs(bird.bank);
+  if (owner === "cursor" && cursorEl) {
+    const s = m.a; // px per map unit: the bird at the map's own scale
+    const px = m.a * bird.x + m.c * bird.y + m.e, py = m.b * bird.x + m.d * bird.y + m.f;
+    cursorEl.style.transform = `translate3d(${px}px, ${py}px, 0) rotate(${bird.heading}rad) scale(${s}, ${s * wings})`;
+  } else if (owner === "auto") {
+    const s = ctx.container.clientWidth / MAP_W;
+    ctx.auto.style.transform = `translate3d(${bird.x * s}px, ${bird.y * s}px, 0) rotate(${bird.heading}rad) scale(${s}, ${s * wings})`;
+  }
+  if (ctx.debug) {
+    const r = orbit ? Math.hypot(bird.x - PINS[orbit.id].x, bird.y - PINS[orbit.id].y) : 0;
+    const ring = ctx.debug.querySelector("[data-debug-orbit]");
+    ring?.setAttribute("cx", String(orbit ? PINS[orbit.id].x : -999));
+    ring?.setAttribute("cy", String(orbit ? PINS[orbit.id].y : -999));
+    ring?.setAttribute("r", String(r));
+    const text = ctx.debug.querySelector("[data-debug-text]");
+    if (text) text.textContent = `${state} · ${owner} · active ${spotlight.active ?? "–"} · r ${r.toFixed(0)}`;
+  }
+}
+
+function schedule() {
+  if (!raf && owner && onScreen && !document.hidden) raf = requestAnimationFrame(frame);
+}
+
+function show(next: "cursor" | "auto" | null) {
+  // cursor ⇄ map bird: an instant swap (a fade would show both, or neither)
+  const handoff = (owner === "auto" && next === "cursor") || (owner === "cursor" && next === "auto");
+  if (handoff && cursorEl) {
+    const el = cursorEl, glyph = el.firstElementChild as HTMLElement | null;
+    el.style.transition = "none";
+    if (glyph) glyph.style.transition = "none";
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.style.removeProperty("transition");
+      glyph?.style.removeProperty("transition");
+    }));
+  }
+  owner = next;
+  if (cursorEl) cursorEl.dataset.visible = String(next === "cursor");
+  if (ctx) {
+    ctx.auto.dataset.visible = String(next === "auto");
+    if (next === "auto") ctx.auto.style.opacity = "1";
+  }
+  last = 0;
+  schedule();
+}
+
+function release() {
+  owner = null;
+  orbit = null;
+  w = 0;
+  state = "idle";
+  if (ctx) ctx.auto.dataset.visible = "false";
+  trail.length = 0;
+  ctx?.trail?.setAttribute("points", "");
+}
+
+/** The autonomous bird enters from the office columns' side (the left). */
+function startAuto(goal: OfficeId) {
+  if (!bird.known) {
+    const c = PINS[goal];
+    bird.x = -U(0.06);
+    bird.y = c.y - U(0.12);
+    bird.vx = U(0.5);
+    bird.vy = 0;
+    bird.heading = 0;
+    bird.known = true;
+  }
+  orbit = null;
+  w = 0;
+  fading = 0;
+  show("auto");
+}
+
+// The goal changes while the cursor is not on the map: the map's bird takes over.
+spotlight.subscribe(() => {
+  if (owner === "cursor" || !ctx) return;
+  const g = spotlight.goal;
+  if (g && owner !== "auto") startAuto(g);
+  else schedule();
+});
+
+// ------------------------------------------------------------------ API
+export const mapBird = {
+  /** MapMotion: the map, its own bird element and the optional trail / debug layers. */
+  attach(c: MapContext) {
+    ctx = c;
+    if (spotlight.goal && owner !== "cursor") startAuto(spotlight.goal);
+  },
+  detach(c: MapContext) {
+    if (ctx !== c) return;
+    if (owner === "auto") release();
+    ctx = null;
+    cancelAnimationFrame(raf);
+    raf = 0;
+  },
+  /** MapMotion: the loop runs only while the map is on screen (and the tab visible). */
+  setOnScreen(v: boolean) {
+    onScreen = v;
+    last = 0;
+    schedule();
+  },
+  resume() {
+    last = 0;
+    schedule();
+  },
+  get state() {
+    return state;
+  },
+  /** The bird in map units (tests / debug). */
+  get position() {
+    return { x: bird.x, y: bird.y, heading: bird.heading, owner, state };
+  },
+};
 
 /**
- * Map mode of the site cursor (see BirdCursor): while the mouse is over the
- * map, the map's own bird follows the pointer, facing the way it moves. Near a
- * marker it flies one loop around it — the loop's position is blended with the
- * pointer, so it eases out of and back into following, and moving well away
- * ends it at once. One element, written once per frame as a transform; the
- * frame loop runs only while the pointer is over the map.
+ * The site cursor's map mode (BirdCursor) — the same API as before (enter the
+ * map, move, leave), now handing the one bird between the cursor and the map.
  */
 export function createMapFlight(el: HTMLElement): MapFlight {
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
-  let zone: HTMLElement | null = null;
-  let rings: { id: string; el: Element }[] = [];
-  const armed = new Set<string>();
-  let px = 0, py = 0; // pointer
-  let x = 0, y = 0; // bird
-  let heading = (BIRD_REST.angle * Math.PI) / 180;
-  let w = 0; // 0 = on the pointer, 1 = on the circle
-  let orbit: { id: string; phi0: number; dir: number; t0: number } | null = null;
-  let raf = 0;
-  let last = 0;
-
-  const centre = (ring: Element) => {
-    const r = ring.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-  };
-
-  const frame = (now: number) => {
-    raf = 0;
-    if (!zone) return;
-    const dt = Math.min(0.05, Math.max(0.001, (now - (last || now - 16)) / 1000));
-    last = now;
-    const mw = zone.getBoundingClientRect().width;
-    const scale = mw / 1037; // the bird at the map's own scale (the artwork is 1037 wide)
-
-    // Arm / trigger: one loop per approach.
-    for (const m of rings) {
-      const c = centre(m.el);
-      const d = Math.hypot(px - c.x, py - c.y);
-      if (d > MAP_FLIGHT.exit * mw) armed.add(m.id);
-      else if (!orbit && !reduce.matches && armed.has(m.id) && d < MAP_FLIGHT.zone * mw) {
-        armed.delete(m.id);
-        const vx = px - x, vy = py - y; // approach direction keeps the turn natural
-        const cross = (x - c.x) * vy - (y - c.y) * vx;
-        orbit = { id: m.id, phi0: Math.atan2(y - c.y, x - c.x), dir: cross >= 0 ? 1 : -1, t0: now };
-      }
-    }
-
-    let tx = px, ty = py, target = 0, easeS = 0.16;
-    if (orbit) {
-      const ring = rings.find((m) => m.id === orbit!.id);
-      const c = ring ? centre(ring.el) : { x: px, y: py };
-      const t = (now - orbit.t0) / 1000 / MAP_FLIGHT.orbitSeconds;
-      const away = Math.hypot(px - c.x, py - c.y) > MAP_FLIGHT.exit * mw;
-      target = t < 1 && !away ? 1 : 0;
-      if (away) easeS = 0.08; // leaving: back on the pointer at once
-      const phi = orbit.phi0 + orbit.dir * TAU * ease(Math.min(1, t));
-      tx = c.x + Math.cos(phi) * MAP_FLIGHT.orbit * mw;
-      ty = c.y + Math.sin(phi) * MAP_FLIGHT.orbit * mw;
-      if (!target && w < 0.01) orbit = null;
-    }
-    w += (target - w) * (1 - Math.exp(-dt / easeS));
-    const nx = px + (tx - px) * w;
-    const ny = py + (ty - py) * w;
-
-    // Face the direction of flight (smoothed; held when still).
-    const vx = (nx - x) / dt, vy = (ny - y) / dt;
-    if (!reduce.matches && Math.hypot(vx, vy) > 40) {
-      heading += wrap(Math.atan2(vy, vx) - heading) * (1 - Math.exp(-dt / 0.09));
-    }
-    x = nx;
-    y = ny;
-    el.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${heading}rad) scale(${scale})`;
-    raf = requestAnimationFrame(frame);
-  };
-
+  cursorEl = el;
   return {
-    enter(z, ex, ey) {
-      zone = z;
-      rings = Array.from(z.querySelectorAll<SVGGElement>("[data-map-marker]")).map((g) => ({
-        id: g.dataset.mapMarker ?? "",
-        el: g.querySelector(".zorx-map-pin-ring") ?? g,
-      }));
-      rings.forEach((m) => armed.add(m.id));
-      px = x = ex;
-      py = y = ey;
-      w = 0;
-      orbit = null;
-      heading = (BIRD_REST.angle * Math.PI) / 180; // arrives in the map's own pose
-      last = 0;
-      el.dataset.visible = "true";
-      if (!raf) raf = requestAnimationFrame(frame);
-      frame(performance.now()); // placed before it shows: no slide-in
+    enter(_zone, x, y) {
+      client = { x, y };
+      const m = ctm();
+      if (owner !== "auto" && m) {
+        // nothing flying: the bird appears under the pointer (no slide-in)
+        Object.assign(bird, toMap(x, y, m));
+        bird.vx = bird.vy = 0;
+        bird.known = true;
+      }
+      // else the map's own bird was flying: the cursor takes it over where it is
+      near = null;
+      show("cursor");
+      if (m) render(m);
     },
-    move(mx, my) {
-      px = mx;
-      py = my;
+    move(x, y) {
+      client = { x, y };
     },
     leave() {
-      zone = null;
-      orbit = null;
-      el.dataset.visible = "false";
-      cancelAnimationFrame(raf);
-      raf = 0;
+      if (owner !== "cursor") return;
+      client = null;
+      near = null;
+      spotlight.set("proximity", null);
+      if (spotlight.goal && ctx) {
+        orbit = null;
+        w = 0;
+        show("auto"); // the map's bird carries on to the goal, from here
+      } else {
+        show(null);
+        release();
+      }
     },
     destroy() {
       this.leave();
+      if (cursorEl === el) cursorEl = null;
     },
   };
 }
+
+/** Pins (map units) and the map's size — for MapMotion. */
+export const MAP_PINS = PINS;
+export const MAP_SIZE = { w: MAP_W, h: MAP_H };

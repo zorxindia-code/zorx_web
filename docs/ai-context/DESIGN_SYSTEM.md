@@ -70,7 +70,7 @@ Key sizes (all fluid `clamp()`):
 | Dividers | 1px solid black between Services rows (`border-top`), full width |
 | Buttons | Outlined rectangles, uppercase, letter-spaced (LET'S TALK, View All Projects); hover fills Ice Blue (only when linked) |
 | Cards (Work) | Image/placeholder 3:2, title below, hover scale 1.035 on media; client logo faint on placeholder |
-| Contact frame | Thin outlined rectangle, no radius |
+| Contact frame | Open: a top line (the birds' perch) and a bottom line only; side borders transparent |
 | Border radius | Effectively **none** across the site (sharp, editorial). Exception: map markers (circles) |
 | Shadows | None, except a subtle `drop-shadow` glow on the hovered client logo |
 | Icons | No icon library. Glyphs are brand bitmaps/SVG (bird, sun ring, scroll-mouse hint drawn in CSS) |
@@ -87,11 +87,13 @@ Key sizes (all fluid `clamp()`):
 | Vision | GSAP timeline + ScrollTrigger (scrub 1.6, `top 85%` → `bottom 55%`) + SplitText | `VisionSection.tsx:18–21, 150+` | Outline draws from the V notch (9 units), light comet travels the wings (7.5 units), headline mask rise + feathered sweep, paragraph line by line |
 | Services birds | GSAP sets + HTML video; state machine | `ServicesSection.tsx` | Hover 750ms (tap 450ms) → bird flies in and perches on the divider below; leave → takes off; playback 1.35× |
 | Peacock grip | rVFC-synced CSS mask on a 1px line | `lib/services/grip.ts`, `branding-bird-grip.json` | Line drawn over the train, cut behind the toes, frame by frame |
-| Client marquee | CSS keyframe `translate3d(-50%)` on a duplicated track; WAAPI `updatePlaybackRate` for hover ease | `ClientsSection.tsx/.css` | 48px/s; hovered logo scales 1.08 + glow; reduced motion → static scroll row |
+| Client marquee | CSS keyframe `translate3d(-50%)` on a duplicated track; WAAPI `updatePlaybackRate` for hover ease | `ClientsSection.tsx/.css` | **60 px/s** (was 48); hovered logo scales 1.08 + glow; reduced motion → static scroll row |
 | Work / Contact reveals | IntersectionObserver + CSS transitions (`data-motion`, `data-in`) | `FeaturedWork.tsx`, `ContactSection.tsx` | Rise + fade, once |
 | Manakins | Transparent looping video (6.42s seamless dissolve loop), lazy, plays only on screen | `ContactSection.tsx` | Poster with reduced motion |
-| Map | SMIL `animateMotion` (bird flies India → UAE, 7s), CSS pin pulse | `ContactMap.tsx`, `MapMotion.tsx` | Paused off-screen; reduced motion → static artwork pose |
-| Cursor | rAF, `mix-blend-mode: difference` | `ui/BirdCursor.tsx/.css` | Bird from the O; scales on link/button/card; on the map it switches to the map's black bird, which circles the Dubai / Kerala pins (`lib/mapFlight.ts`) |
+| Map | One bird (`lib/mapFlight.ts`): free flight after the pointer, magnetic spiral into a stable orbit around Dubai / Kerala; office spotlight (other column 25 %); radar on the active pin; pins are buttons | `ContactMap.tsx`, `MapMotion.tsx`, `lib/officeSpotlight.ts`, `config/mapInteraction.ts` | Touch / office hover / selection: the map's own bird flies it; reduced motion: no orbit or pulses |
+| Cursor | rAF, `mix-blend-mode: difference` | `ui/BirdCursor.tsx/.css` | Bird from the O; scales on link/button/card; on the map it switches to the black map bird, which circles the Dubai / Kerala pins **continuously** while the pointer is near (`lib/mapFlight.ts`, 2.6 s per loop) |
+| Smooth scrolling | Lenis 1.3.11 on the native document scroll, stepped by `gsap.ticker` (`lagSmoothing(0)`), `ScrollTrigger.update` on each Lenis scroll | `providers/SmoothScrollProvider.tsx`, `config/scroll.ts` | `lerp 0.085`, `wheelMultiplier 0.8`, `syncTouch: false` (native touch); stopped while the preloader locks (`html.zorx-locked`); off with reduced motion |
+| THANKS footer | Matter.js (local world, 120 Hz sub-steps, sleeping) + DOM transforms; CSS 3D flip cards | `footer/GravityFooter.tsx/.css`, `lib/footer/gravityWorld.ts` | Release when the icon row reaches the viewport bottom; guided first landing, then free drag / throw / knock; reduced motion → static landed layout |
 | Loaders | CSS spin of `loading_sun.png` around a stationary bird | `ui/LoadingIndicator.tsx`, `app/loading.tsx` | 150ms grace fade-in |
 
 **Easing vocabulary:**

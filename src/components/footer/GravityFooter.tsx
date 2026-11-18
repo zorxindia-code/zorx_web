@@ -4,7 +4,7 @@ import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { servicesFont } from "@/components/services/font";
 import { GREETINGS, GRAVITY_TUNING as T, SOCIALS, type SocialId } from "@/config/socials";
 import { createGravityWorld, type GravityObject, type GravityWorld } from "@/lib/footer/gravityWorld";
-import { ICON_R, LABEL_SIZE, LETTERS, SCENE_H, SCENE_W, START, TARGET } from "@/lib/footer/thanksScene";
+import { ICON_R, LABEL_SIZE, LETTERS, SCENE_W, START, TARGET, VIEW_H } from "@/lib/footer/thanksScene";
 import "./GravityFooter.css";
 
 /** Social glyphs (standard marks), drawn in a 24 × 24 box in the icon's `fg` colour. */
@@ -32,7 +32,7 @@ const GLYPHS: Record<SocialId, ReactNode> = {
 };
 
 /** Scene → CSS: the designed spot of an object, as % of the stage. */
-const at = (id: string): CSSProperties => ({ left: `${(START[id].x / SCENE_W) * 100}%`, top: `${(START[id].y / SCENE_H) * 100}%` });
+const at = (id: string): CSSProperties => ({ left: `${(START[id].x / SCENE_W) * 100}%`, top: `${(START[id].y / VIEW_H) * 100}%` });
 
 /**
  * The THANKS footer: five social icons above the outlined THANKS, with four
@@ -69,7 +69,7 @@ export default function GravityFooter() {
       for (const el of els) {
         const tg = TARGET[el.dataset.body!];
         el.style.left = `${(tg.x / SCENE_W) * 100}%`;
-        el.style.top = `${(tg.y / SCENE_H) * 100}%`;
+        el.style.top = `${(tg.y / VIEW_H) * 100}%`;
         el.style.transform = `translate(-50%, -50%) rotate(${tg.angle}deg)`;
       }
       return;
@@ -184,6 +184,10 @@ export default function GravityFooter() {
       last.set(e.pointerId, { ...p, t: e.timeStamp });
     };
     const onLeave = (e: PointerEvent) => last.delete(e.pointerId);
+    // The page scrolling under a still pointer moves the scene, not the pointer:
+    // start the next sweep afresh instead of reading that distance as a flick.
+    const onScroll = () => last.clear();
+    window.addEventListener("scroll", onScroll, { passive: true });
     const onDown = (e: PointerEvent) => {
       const el = (e.target as Element).closest<HTMLElement>("[data-body]");
       if (!el || !world?.released || e.button > 0) return;
@@ -225,6 +229,7 @@ export default function GravityFooter() {
       document.removeEventListener("visibilitychange", onVisibility);
       stage.removeEventListener("pointermove", onMove);
       stage.removeEventListener("pointerleave", onLeave);
+      window.removeEventListener("scroll", onScroll);
       stage.removeEventListener("pointerdown", onDown);
       stage.removeEventListener("pointerup", onUp);
       stage.removeEventListener("pointercancel", onUp);
@@ -242,15 +247,39 @@ export default function GravityFooter() {
     };
   }, []);
 
+  // Greeting cards turn over on a deliberate click / tap / Enter / Space. A bubbling
+  // listener: after a drag, the physics' capture-phase handler has already stopped
+  // the click, so a drag or throw never flips a card. Works with reduced motion too.
+  useEffect(() => {
+    const stage = stageRef.current!;
+    const onFlip = (e: MouseEvent) => {
+      const el = (e.target as Element).closest<HTMLElement>('[data-kind="capsule"]');
+      if (!el) return;
+      const on = el.getAttribute("aria-pressed") !== "true";
+      el.setAttribute("aria-pressed", String(on));
+      if (on) el.dataset.flipped = "";
+      else delete el.dataset.flipped;
+      // the face on show is the one read out
+      el.querySelector(".zorx-gravity-front")?.setAttribute("aria-hidden", String(on));
+      el.querySelector(".zorx-gravity-back")?.setAttribute("aria-hidden", String(!on));
+    };
+    stage.addEventListener("click", onFlip);
+    return () => stage.removeEventListener("click", onFlip);
+  }, []);
+
   const debug = process.env.NODE_ENV !== "production"; // collision overlay (dev builds): add ?gravity-debug
   return (
     <section className={`zorx-gravity ${servicesFont.variable}`} aria-labelledby="zorx-gravity-title">
       <h2 id="zorx-gravity-title" className="sr-only">
         Thanks — follow ZORX
       </h2>
-      <div ref={stageRef} className="zorx-gravity-stage">
+      <div
+        ref={stageRef}
+        className="zorx-gravity-stage"
+        style={{ "--scene-w": SCENE_W, "--scene-h": VIEW_H } as CSSProperties}
+      >
         <span className="zorx-gravity-row" aria-hidden="true" />
-        <svg className="zorx-gravity-letters" viewBox={`0 0 ${SCENE_W} ${SCENE_H}`} aria-hidden="true" focusable="false">
+        <svg className="zorx-gravity-letters" viewBox={`0 0 ${SCENE_W} ${VIEW_H}`} aria-hidden="true" focusable="false">
           {LETTERS.map((l) => (
             <path key={l.id} d={l.d} />
           ))}
@@ -289,16 +318,28 @@ export default function GravityFooter() {
           })}
         </ul>
 
+        {/* Greeting cards. The outer button is the physics body (position, rotation,
+            drag, throw); only the inner card turns over (rotateY) — two layers, so
+            a flip never disturbs the physics and the body never changes. */}
         {GREETINGS.map((g) => (
-          <span
+          <button
             key={g.id}
+            type="button"
             className="zorx-gravity-label"
             data-body={g.id}
             data-kind="capsule"
+            aria-pressed="false"
             style={{ ...at(g.id), "--bg": g.bg } as CSSProperties}
           >
-            {g.text}
-          </span>
+            {/* the accessible name starts with the visible face; the hidden face is aria-hidden */}
+            <span className="zorx-gravity-card">
+              <span className="zorx-gravity-face zorx-gravity-front">{g.front}</span>
+              <span className="zorx-gravity-face zorx-gravity-back" lang={g.backLang} dir={g.backDir} aria-hidden="true">
+                {g.back}
+              </span>
+            </span>
+            <span className="sr-only"> — thank you in {g.language}</span>
+          </button>
         ))}
       </div>
     </section>

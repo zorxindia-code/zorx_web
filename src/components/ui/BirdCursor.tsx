@@ -83,9 +83,13 @@ export function BirdCursor() {
       x = e.clientX;
       y = e.clientY;
       flight.move(x, y);
-      if (!on) write(); // first appearance: place before showing (no slide-in)
+      const appearing = !on;
+      if (appearing) write(); // first appearance: place before showing (no slide-in)
       else if (!raf) raf = requestAnimationFrame(write);
       show(true);
+      // Re-appearing (e.g. back from outside the window) already over the map:
+      // no new pointerover will come, so take up the map mode here.
+      if (appearing) setZone((e.target as Element | null)?.closest<HTMLElement>('[data-cursor-zone="map"]') ?? null);
     };
     const onOver = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;
