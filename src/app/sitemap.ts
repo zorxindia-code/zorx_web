@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { FEATURED_WORK } from "@/config/work";
+import { LIVE_PROJECTS, projectPath } from "@/lib/work/projects";
 import { INDEXABLE, SERVICE_PAGES, absoluteUrl } from "@/config/seo";
 
 /**
@@ -12,8 +12,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   if (!INDEXABLE) return [];
   const home = absoluteUrl("/")!;
   const services = SERVICE_PAGES.filter((s) => s.published).map((s) => ({ url: absoluteUrl(`/services/${s.slug}`)! }));
-  const work = FEATURED_WORK.filter((p) => p.published && p.slug).map((p) => ({
-    url: absoluteUrl(`/work/${p.slug}`)!,
+  const work = LIVE_PROJECTS.map((p) => ({
+    url: absoluteUrl(projectPath(p))!,
     ...(p.updatedAt ? { lastModified: p.updatedAt } : {}),
   }));
   return [{ url: home }, ...services, ...work];

@@ -24,7 +24,7 @@ const BUDGETS = {
   initialCssGzip: 20 * KB, // measured 10.5 KB
   fontsTotal: 80 * KB, // all referenced subsets, measured 65.2 KB (downloaded on this page: Outfit 44.9 + Jost latin 10.5)
   firstScreenMedia: 320 * KB, // measured 262 KB (the loader bird clip)
-  perServiceClip: 3.5 * MB, // largest: branding-bird-hevc.mp4 3.1 MB
+  perServiceClip: 3.5 * MB, // largest: branding-bird.webm 2.1 MB (HEVC v2 2.1 MB)
   showreelSmall: 10 * MB, // showreel-720.mp4 9.0 MB
   showreelLarge: 20 * MB, // showreel-1080.mp4 18.4 MB
   publicTotal: 60 * MB, // measured 54 MB

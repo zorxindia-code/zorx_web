@@ -161,8 +161,8 @@ Example config entry (`src/config/services.ts`, abridged):
   id: "branding", label: "Branding",
   bird: {
     id: "branding", side: "left", size: 1.52,
-    enter: { webm: "/videos/bird/branding-bird.webm", hevc: "/videos/bird/branding-bird-hevc.mp4" },
-    exit:  { webm: "/videos/bird/branding-bird-exit.webm", hevc: "/videos/bird/branding-bird-exit-hevc.mp4" },
+    enter: { webm: "/videos/bird/branding-bird.webm", hevc: "/videos/bird/branding-bird-hevc.v2.mp4" },
+    exit:  { webm: "/videos/bird/branding-bird-exit.webm", hevc: "/videos/bird/branding-bird-exit-hevc.v2.mp4" },
     meta: brandingMeta,          // perch line, bounds, feet (from the processing script)
     grip: brandingGrip,          // per-frame toe data (measure-bird-grip.mjs)
   },
@@ -303,4 +303,11 @@ VIEW ALL PROJECTS and LET'S TALK share `.zorx-cta-primary` (`globals.css`): `cla
 - **Ranges** (clip s): rest = 0 (= poster); `watch` 0–4.0 (blink, look front / right / back left; ends 23.9 from rest — a small head shift when it returns); `react` 4.0–7.125 (crouch, wing flap, land; flows into the rest pose). Source after 7.6 s faces right — not used.
 - **Controller** (`FemaleBird` in ContactSection.tsx): one video, states resting / idle-reaction / cta-reaction / paused. Look-arounds start on the males' courtship bursts (`FEMALE_TUNING.maleCues`, measured peaks 1.08 / 2.50 / 4.17 s of the 6.42 s loop) after a 2.5–4 s rest. LET'S TALK: mouse hover, touch pointerdown (never delays the WhatsApp link) or keyboard focus → the flap, once (1.5 s cooldown, no restart); a look-around near its end runs on into it. Range ends caught per frame (requestVideoFrameCallback; `ended` for the clip end). Off screen / hidden tab: paused, resumes. Lazy (600 px), one format (`prefersHevcAlpha`). Reduced motion or an error: the poster (same pose / place / size). The poster hides while the clip shows (`[data-video]`), or a moving bird would show the resting one through it.
 - **Verified** (Chrome + WebKit, 320–1920): video exactly over the poster, perch error 0–0.01 px, same bird height as before (111.5 px at 1440), wings inside the canvas, no overflow; hover → flap in 70–135 ms; 10 rapid hovers don't restart; returns to rest; off-screen pause / resume; touch tap starts the flap and opens WhatsApp; reduced motion: no video requests. Note: Tailwind's source scan now skips `assets-src/` and `scripts/` (`@source not` in globals.css) — some source files carry a macOS privacy attribute (com.apple.macl) that blocked the build from reading them.
+
+## Project page — /work/{slug} (2026-11-19)
+
+- Route `src/app/work/[slug]/page.tsx` (prerendered from `PROJECT_PAGES` = projects with `page` content in `src/config/work.ts`); component `src/components/work/ProjectPage.tsx` + `.css`. First live: Boat Seafood Restaurant (`/work/boat-seafood-restaurant`), linked from its Featured Work card.
+- Layout from the agreed 1440 spec (in vw): margins 36, fixed left column 548 (title 60 px, year / services / description 19 px, second text column at 205, description 256 wide, next project ≈ 40 from the bottom), image column 784 (first image portrait 3 : 4 → 784 × 1045, export 1080 × 1440 or 1568 × 2091; then 784 × 500 landscape, 16 gap), sticky header 81. Phones: one column. Black / white / Outfit.
+- Content: `page: { year, services, description, website, images }` — all empty for Boat (to be supplied). Empty fields are hidden on the live site; non-indexable builds show marked slots. No images yet → panels with the client logo, faint. Page is noindex until `published: true` (then canonical + sitemap).
+- With Cache Components `dynamicParams` is not allowed: unknown slugs call `notFound()` → branded 404 with `noindex`, but HTTP 200 (partial prefetching streams the shell first).
 

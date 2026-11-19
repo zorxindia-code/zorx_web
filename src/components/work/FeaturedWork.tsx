@@ -6,6 +6,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { servicesFont } from "@/components/services/font";
 import { ALL_PROJECTS_HREF, FEATURED_WORK, type FeaturedProject } from "@/config/work";
+import { leaveHomeForProject } from "@/lib/work/navigation";
 import "./FeaturedWork.css";
 
 /**
@@ -16,8 +17,12 @@ import "./FeaturedWork.css";
  * place as they enter the viewport — CSS transitions toggled once by an
  * IntersectionObserver (no scroll listeners, no loops). Without JS or with
  * reduced motion everything is simply shown.
+ *
+ * Cards link to their project page when it is live in this build (`hrefs`,
+ * worked out on the server — src/lib/work/projects.ts). Leaving through a card
+ * records the scroll position, so coming back returns here.
  */
-export default function FeaturedWork() {
+export default function FeaturedWork({ hrefs }: { hrefs: Readonly<Record<string, string | null>> }) {
   const section = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -68,7 +73,7 @@ export default function FeaturedWork() {
             data-reveal=""
             style={{ "--col": i % 2 } as CSSProperties}
           >
-            <ProjectCard project={project} />
+            <ProjectCard project={project} href={hrefs[project.id] ?? null} />
           </li>
         ))}
       </ul>
@@ -89,7 +94,7 @@ export default function FeaturedWork() {
   );
 }
 
-function ProjectCard({ project }: { project: FeaturedProject }) {
+function ProjectCard({ project, href }: { project: FeaturedProject; href: string | null }) {
   const body: ReactNode = (
     <>
       <div className="zorx-work-media">
@@ -118,7 +123,7 @@ function ProjectCard({ project }: { project: FeaturedProject }) {
             />
           </div>
         )}
-        {project.href && (
+        {href && (
           <span className="zorx-work-view" aria-hidden="true">
             View project <span className="zorx-work-arrow">→</span>
           </span>
@@ -128,8 +133,8 @@ function ProjectCard({ project }: { project: FeaturedProject }) {
     </>
   );
 
-  return project.href ? (
-    <Link href={project.href} className="zorx-work-card" data-link="">
+  return href ? (
+    <Link href={href} prefetch className="zorx-work-card" data-link="" onClick={leaveHomeForProject}>
       {body}
     </Link>
   ) : (

@@ -9,6 +9,7 @@ import { ASSETS, TUNING } from "@/config/brand";
 import { computeLayout, type StageLayout } from "@/lib/zorx/layout";
 import { createBirdController, waitForEssentials } from "@/lib/zorx/media";
 import { buildScrollExperience, setInitialState, type Rig } from "@/lib/zorx/timelines";
+import { takeHomeReturn } from "@/lib/work/navigation";
 import { Preloader } from "./Preloader";
 import { ZorxLogoReveal } from "./ZorxLogoReveal";
 import { ShowreelSection } from "./ShowreelSection";
@@ -27,6 +28,11 @@ gsap.registerPlugin(ScrollTrigger, useGSAP);
  *   06  scroll                      logo → Z | showreel | X
  *
  * After loading nothing moves on its own; the user's scroll drives every frame.
+ *
+ * Coming back from a project page (Back to home, the logo, browser back) the
+ * intro is not replayed: no minimum loading time, and once the scroll scene is
+ * built the page returns to where the user left Featured Work — hidden until
+ * then (html[data-zorx-return]), so the top of the page never flashes.
  */
 export default function ZorxExperience() {
   const root = useRef<HTMLDivElement>(null);
@@ -53,6 +59,8 @@ export default function ZorxExperience() {
 
       if ("scrollRestoration" in history) history.scrollRestoration = "manual";
       window.scrollTo(0, 0);
+      const returnTo = takeHomeReturn();
+      if (returnTo) html.dataset.zorxReturn = "";
       html.classList.add("zorx-locked");
       ScrollTrigger.config({ ignoreMobileResize: true });
 
@@ -130,10 +138,11 @@ export default function ZorxExperience() {
       let alive = true;
       let scrollTl: gsap.core.Timeline | null = null;
       let disposeScroll: (() => void) | null = null;
+      let arriveTimer = 0;
       const essentials = waitForEssentials(
         loaderEl,
         Array.from(stageEl.querySelectorAll<HTMLImageElement>(".zorx-art img, .zorx-square img")),
-        TUNING.loadingMinMs,
+        returnTo ? 0 : TUNING.loadingMinMs,
         TUNING.loadingMaxMs,
       );
 
@@ -148,6 +157,14 @@ export default function ZorxExperience() {
             scrollTl = built.tl;
             disposeScroll = built.dispose;
             stageEl.dataset.ready = ""; // fades the scroll indicator in (CSS)
+            if (returnTo) {
+              ScrollTrigger.refresh(); // pin spacing in place: section positions are final
+              window.scrollTo({ top: returnTo(), behavior: "instant" });
+              ScrollTrigger.update();
+              delete html.dataset.zorxReturn;
+              html.dataset.zorxArrive = ""; // short fade in (CSS)
+              arriveTimer = window.setTimeout(() => delete html.dataset.zorxArrive, 600);
+            }
           }),
         )
         .catch(() => {});
@@ -187,6 +204,9 @@ export default function ZorxExperience() {
         reelVid.pause();
         rig.bird.dispose();
         html.classList.remove("zorx-locked");
+        window.clearTimeout(arriveTimer);
+        delete html.dataset.zorxReturn;
+        delete html.dataset.zorxArrive;
       };
     },
     { scope: root },

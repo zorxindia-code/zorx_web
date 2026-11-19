@@ -565,6 +565,10 @@ html.zorx-locked body {
   height: 1px;
   background: currentColor;
   pointer-events: none;
+  /* no line at rest; on hover it draws left → right, on leave retracts to the right */
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 /* invisible, touch-friendly hit area — no effect on layout */
 a.zorx-cta::before,
@@ -578,30 +582,19 @@ button.zorx-cta {
   cursor: pointer;
 }
 /* hover: also on a CTA whose destination isn't set yet — the designed interaction */
+/* (.zorx-cta-host: a link holding a .zorx-cta label beside an icon — the label's line
+   draws while anywhere on the link is hovered) */
 @media (hover: hover) {
-  .zorx-cta:hover::after {
-    animation: zorx-cta-redraw 0.46s both;
+  .zorx-cta:hover::after,
+  .zorx-cta-host:hover .zorx-cta::after {
+    transform: scaleX(1);
+    transform-origin: left center;
   }
 }
-@keyframes zorx-cta-redraw {
-  0% {
-    transform: scaleX(1);
-    transform-origin: right center;
-    animation-timing-function: cubic-bezier(0.55, 0, 0.75, 0.3);
-  }
-  45% {
-    transform: scaleX(0);
-    transform-origin: right center;
-  }
-  45.01% {
-    transform: scaleX(0);
-    transform-origin: left center;
-    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
-  }
-  100% {
-    transform: scaleX(1);
-    transform-origin: left center;
-  }
+.zorx-cta:focus-visible::after,
+.zorx-cta-host:focus-visible .zorx-cta::after {
+  transform: scaleX(1);
+  transform-origin: left center;
 }
 .zorx-cta:focus-visible {
   outline: 1px solid var(--zorx-ice);
@@ -625,7 +618,7 @@ button.zorx-cta {
 }
 @media (prefers-reduced-motion: reduce) {
   .zorx-cta::after {
-    animation: none !important;
+    transition: none;
   }
 }
 
@@ -674,4 +667,24 @@ button.zorx-cta {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-decoration: none;
+}
+
+/* ------------------------------------------------------------- project pages */
+/* Back from a project page: the homepage stays hidden until it is back at
+   Featured Work (ZorxExperience), then fades in — the top never flashes. */
+html[data-zorx-return] body {
+  opacity: 0;
+}
+html[data-zorx-arrive] body {
+  animation: zorx-arrive 0.4s ease both;
+}
+@keyframes zorx-arrive {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-zorx-arrive] body {
+    animation: none;
+  }
 }

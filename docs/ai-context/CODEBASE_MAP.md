@@ -27,8 +27,8 @@ zorx_web/
 │  ├─ screens/               design reference screenshots (landing_showreel.jpeg referenced in comments only)
 │  └─ videos/
 │     ├─ optimized/          loading-bird-ice.mp4, showreel-1080/720.mp4, showreel-poster.jpg  ← served
-│     ├─ bird/               processed service birds (*.webm, *-hevc.mp4, *.json, grip JSON) ← served
-│     ├─ contact/            manakins.webm / -hevc.mp4 / -poster.webp / .json ← served
+│     ├─ bird/               processed service birds (*.webm, *-hevc.v2.mp4, *.json, grip JSON) ← served
+│     ├─ contact/            manakins.webm / -hevc.v2.mp4 / -poster.webp / .json ← served
 │     ├─ bird-videos/        ORIGINAL green-screen sources (not used at runtime)
 │     ├─ Loading.mp4         ORIGINAL intro bird (not used at runtime)
 │     └─ showreel.mp4        ORIGINAL 80 MB master (gitignored, local only)
@@ -68,6 +68,7 @@ zorx_web/
 | `/icon.png`, `/apple-icon.png` | `src/app/icon.png`, `apple-icon.png` | File-based metadata icons |
 | `/robots.txt`, `/sitemap.xml` | `src/app/robots.ts`, `src/app/sitemap.ts` | Production-only crawling + sitemap (`src/config/seo.ts`, `SITE_URL`) |
 | `/opengraph-image`, `/twitter-image` | `src/app/*-image.tsx` | 1200 × 630 share card |
+| `/work/[slug]` | `src/app/work/[slug]/page.tsx`, `src/components/work/ProjectPage.tsx` | One template for all four projects (`work.ts` `page`; helpers in `src/lib/work/projects.ts`). Black page, Ice Blue type, fixed header, sticky info, right-half gallery with a top-only fade. Live site: unpublished pages are a 404 and unlinked. Back to home returns to Featured Work (`src/lib/work/navigation.ts`) |
 | (404 / error) | `src/app/not-found.tsx`, `src/app/error.tsx` | Branded; real 404 |
 | — | — | No `loading.tsx` (removed: it hid the static page behind a fallback); no `/api` |
 

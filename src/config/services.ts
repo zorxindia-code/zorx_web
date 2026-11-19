@@ -99,8 +99,8 @@ export const SERVICES: readonly Service[] = [
       id: "branding",
       side: "left", // peacock: enters from the left, leaves to the left
       size: 1.52, // ~+17% over the earlier 1.3 (still clamped clear of the text)
-      enter: { webm: "/videos/bird/branding-bird.webm", hevc: "/videos/bird/branding-bird-hevc.mp4" },
-      exit: { webm: "/videos/bird/branding-bird-exit.webm", hevc: "/videos/bird/branding-bird-exit-hevc.mp4" },
+      enter: { webm: "/videos/bird/branding-bird.webm", hevc: "/videos/bird/branding-bird-hevc.v2.mp4" },
+      exit: { webm: "/videos/bird/branding-bird-exit.webm", hevc: "/videos/bird/branding-bird-exit-hevc.v2.mp4" },
       meta: brandingMeta,
       grip: brandingGrip,
     },
@@ -113,8 +113,8 @@ export const SERVICES: readonly Service[] = [
     bird: {
       id: "website",
       side: "right", // woodpecker: enters from the right, leaves to the right
-      enter: { webm: "/videos/bird/website.webm", hevc: "/videos/bird/website-hevc.mp4" },
-      exit: { webm: "/videos/bird/website-exit.webm", hevc: "/videos/bird/website-exit-hevc.mp4" },
+      enter: { webm: "/videos/bird/website.webm", hevc: "/videos/bird/website-hevc.v2.mp4" },
+      exit: { webm: "/videos/bird/website-exit.webm", hevc: "/videos/bird/website-exit-hevc.v2.mp4" },
       meta: websiteMeta,
     },
   },
@@ -131,8 +131,8 @@ export const SERVICES: readonly Service[] = [
       // 1.04 × the shared 0.775 rule = the owl's original rendered size (1.3 × 0.62):
       // it stays at its normal size while the other birds are 1.25× larger.
       size: 1.04,
-      enter: { webm: "/videos/bird/production.webm", hevc: "/videos/bird/production-hevc.mp4" },
-      exit: { webm: "/videos/bird/production-exit.webm", hevc: "/videos/bird/production-exit-hevc.mp4" },
+      enter: { webm: "/videos/bird/production.webm", hevc: "/videos/bird/production-hevc.v2.mp4" },
+      exit: { webm: "/videos/bird/production-exit.webm", hevc: "/videos/bird/production-exit-hevc.v2.mp4" },
       meta: productionMeta,
     },
   },
@@ -148,8 +148,8 @@ export const SERVICES: readonly Service[] = [
       id: "marketing",
       side: "right", // macaw: enters from the right, leaves to the right
       size: 1.3,
-      enter: { webm: "/videos/bird/marketing.webm", hevc: "/videos/bird/marketing-hevc.mp4" },
-      exit: { webm: "/videos/bird/marketing-exit.webm", hevc: "/videos/bird/marketing-exit-hevc.mp4" },
+      enter: { webm: "/videos/bird/marketing.webm", hevc: "/videos/bird/marketing-hevc.v2.mp4" },
+      exit: { webm: "/videos/bird/marketing-exit.webm", hevc: "/videos/bird/marketing-exit-hevc.v2.mp4" },
       meta: marketingMeta,
     },
   },

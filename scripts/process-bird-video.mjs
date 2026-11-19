@@ -813,7 +813,12 @@ const enc = (argv) =>
   });
 const scale = `scale=${OUT_W}:${OUT_H}:flags=lanczos`;
 await enc(["-vf", `${scale},format=yuva420p`, "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-b:v", "0", "-crf", String(CRF), "-row-mt", "1", "-deadline", "good", "-auto-alt-ref", "0", "-an", join(OUT_DIR, `${NAME}.webm`)]);
-await enc(["-vf", `${scale},format=bgra`, "-c:v", "hevc_videotoolbox", "-alpha_quality", String(ALPHA_Q), "-q:v", String(HEVC_Q), "-tag:v", "hvc1", "-an", "-movflags", "+faststart", join(OUT_DIR, `${NAME}-hevc.mp4`)]);
+// HEVC alpha: VideoToolbox marks the stream PremultipliedAlpha (its default; ffmpeg
+// can't change it), and iOS composites it that way — so the colour must be
+// premultiplied (0 where transparent). Straight colour under alpha 0 shows as a
+// grey / white rectangle on iPhones (2026-11-19). Versioned name: a re-encode
+// must not be served from a cached copy.
+await enc(["-vf", `${scale},format=rgba,premultiply=inplace=1,format=bgra`, "-c:v", "hevc_videotoolbox", "-alpha_quality", String(ALPHA_Q), "-q:v", String(HEVC_Q), "-tag:v", "hvc1", "-an", "-movflags", "+faststart", join(OUT_DIR, `${NAME}-hevc.v2.mp4`)]);
 writeFileSync(join(OUT_DIR, `${NAME}.json`), JSON.stringify(placement, null, 2) + "\n");
 if (POSTER) {
   const sharp = (await import("sharp")).default;
@@ -825,4 +830,4 @@ if (POSTER) {
 }
 const { unlinkSync } = await import("node:fs");
 if (!process.env.KEEP_RAW) unlinkSync(raw);
-console.log(`wrote ${OUT_DIR}/${NAME}.webm, ${NAME}-hevc.mp4, ${NAME}.json`);
+console.log(`wrote ${OUT_DIR}/${NAME}.webm, ${NAME}-hevc.v2.mp4, ${NAME}.json`);

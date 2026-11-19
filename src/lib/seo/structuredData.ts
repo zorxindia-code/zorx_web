@@ -1,4 +1,5 @@
 import { SAME_AS, SEO, SERVICE_PAGES, absoluteUrl } from "@/config/seo";
+import { projectPath, type ProjectWithPage } from "@/lib/work/projects";
 
 /**
  * Schema.org JSON-LD for the homepage — only facts the site actually shows.
@@ -41,6 +42,30 @@ export function homeStructuredData() {
         ...(s.published ? { url: absoluteUrl(`/services/${s.slug}`) } : {}),
       })),
     ],
+  };
+}
+
+/**
+ * CreativeWork for a published project page — only what the page shows. Needs
+ * the production origin; unpublished pages get none.
+ */
+export function projectStructuredData(p: ProjectWithPage) {
+  const url = absoluteUrl(projectPath(p));
+  const site = absoluteUrl("/");
+  if (!url || !site || !p.published) return null;
+  const images = p.page.gallery.filter((m) => m.type === "image").map((m) => absoluteUrl(m.src));
+  return {
+    "@context": "https://schema.org",
+    "@type": "CreativeWork",
+    "@id": `${url}#work`,
+    name: p.title,
+    url,
+    ...(p.page.description ? { description: p.page.description } : {}),
+    ...(p.page.year ? { dateCreated: p.page.year } : {}),
+    ...(p.page.services.length ? { keywords: p.page.services.join(", ") } : {}),
+    ...(images.length ? { image: images } : {}),
+    creator: { "@id": `${site}#organization` },
+    inLanguage: SEO.language,
   };
 }
 

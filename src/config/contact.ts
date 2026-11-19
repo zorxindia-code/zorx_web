@@ -117,7 +117,7 @@ export interface ContactBirds {
 export const CONTACT_BIRDS: ContactBirds = {
   males: {
     webm: "/videos/contact/manakins.webm",
-    hevc: "/videos/contact/manakins-hevc.mp4",
+    hevc: "/videos/contact/manakins-hevc.v2.mp4",
     poster: "/videos/contact/manakins-poster.webp",
     width: 960,
     height: 516,
@@ -143,7 +143,7 @@ export const CONTACT_BIRDS: ContactBirds = {
     feetX: 235.1,
     motion: {
       webm: "/videos/contact/female-bird.webm",
-      hevc: "/videos/contact/female-bird-hevc.mp4",
+      hevc: "/videos/contact/female-bird-hevc.v2.mp4",
       rest: 0,
       watch: [0, 4.0],
       react: [4.0, 7.125],

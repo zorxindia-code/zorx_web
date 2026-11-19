@@ -26,7 +26,15 @@
   line-height: 1.6;
   color: #fff;
   min-width: 0;
+  /* full row height (the map's, on desktop): the phone / email group sits at its foot */
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
   transition: opacity var(--office-fade, 0.5s) cubic-bezier(0.4, 0, 0.2, 1);
+}
+.zorx-office-reach {
+  margin-top: auto;
+  padding-top: clamp(1.25rem, 3vw, 3rem); /* at least this much air under the address */
 }
 /* Office spotlight (MapMotion): the other office steps back while one is active.
    Only opacity — no layout change; touching it (hover / focus) brings it back
@@ -43,9 +51,6 @@
     opacity: 1;
   }
 }
-.zorx-office[data-office="india"] {
-  color: #8b9097; /* the secondary column, muted */
-}
 .zorx-office-heading {
   margin: 0 0 clamp(0.9rem, 1.6vw, 1.4rem);
   font-size: clamp(0.975rem, 1.275vw, 1.225rem); /* ×1.25 (was clamp(0.78rem, 1.02vw, 0.98rem)) */
@@ -54,7 +59,7 @@
   text-transform: uppercase;
 }
 .zorx-office-address {
-  margin: 0 0 1.1em;
+  margin: 0;
 }
 /* masked line: the wrapper clips, the inner span rises into it (MapMotion) */
 .zorx-office-line {
@@ -262,6 +267,10 @@
 @media (max-width: 560px) {
   .zorx-offices-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* phones: the map first, then UAE and India (visual order only) */
+  .zorx-map {
+    order: -1;
   }
 }
 

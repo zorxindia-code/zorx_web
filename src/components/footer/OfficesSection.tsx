@@ -5,7 +5,7 @@ import ContactMap from "./ContactMap";
 import "./OfficesSection.css";
 
 /**
- * Footer part 2: two contact columns (UAE in white, India in muted grey) and the
+ * Footer part 2: two contact columns (both white; the spotlight dims the other) and the
  * illustrated route map on the right. Server-rendered; only the map's motion
  * control runs on the client. Each column shows only the details that exist in
  * config (src/config/contact.ts) — nothing is invented.
@@ -13,7 +13,13 @@ import "./OfficesSection.css";
  * Each address line sits in a clipping wrapper so MapMotion can reveal
  * it (rise + fade) when its office becomes the active one; without JS or with
  * reduced motion the lines are simply there.
+ *
+ * Each column: CONTACT, country and address at the top; phone and email in a
+ * lower group pushed to the column's foot (the map's bottom edge on desktop),
+ * so different address lengths never move it. When any office has an email,
+ * the others keep an empty line in its place, so the phones share a baseline.
  */
+const ANY_EMAIL = OFFICES.some((o) => o.email);
 export default function OfficesSection() {
   return (
     <section className={`zorx-offices ${servicesFont.variable}`} aria-labelledby="zorx-offices-title">
@@ -42,15 +48,21 @@ function OfficeColumn({ office }: { office: Office }) {
           ))}
         </p>
       )}
-      {office.phone && (
-        <a className="zorx-office-link" href={`tel:${office.phone.replace(/[^\d+]/g, "")}`}>
-          {office.phone}
-        </a>
-      )}
-      {office.email && (
-        <a className="zorx-office-link" href={`mailto:${office.email}`}>
-          {office.email}
-        </a>
+      {(office.phone || ANY_EMAIL) && (
+        <div className="zorx-office-reach">
+          {office.phone && (
+            <a className="zorx-office-link" href={`tel:${office.phone.replace(/[^\d+]/g, "")}`}>
+              {office.phone}
+            </a>
+          )}
+          {office.email ? (
+            <a className="zorx-office-link" href={`mailto:${office.email}`}>
+              {office.email}
+            </a>
+          ) : (
+            ANY_EMAIL && <span className="zorx-office-link" aria-hidden="true">{"\u00a0"}</span>
+          )}
+        </div>
       )}
     </address>
   );
