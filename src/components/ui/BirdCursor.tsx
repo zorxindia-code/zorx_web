@@ -43,90 +43,24 @@ export function BirdCursor() {
     const el = root.current;
     const mapEl = mapRoot.current;
     if (!el || !mapEl) return;
+    // Only with a hovering fine pointer (a mouse). Hybrid devices can gain or lose
+    // one (a mouse plugged in, a tablet docked): follow the capability, so the
+    // bird starts / stops with it and nothing runs on a touch-only device.
     const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
-    if (!fine.matches) return;
-
-    const html = document.documentElement;
-    let x = 0;
-    let y = 0;
-    let raf = 0;
-    let on = false;
-    let zone: HTMLElement | null = null;
-    const flight = createMapFlight(mapEl);
-
-    const setZone = (next: HTMLElement | null) => {
-      if (next === zone) return;
-      zone = next;
-      if (zone) {
-        el.dataset.mode = "map";
-        flight.enter(zone, x, y);
-      } else {
-        delete el.dataset.mode;
-        flight.leave();
+    let stop: (() => void) | null = null;
+    const sync = () => {
+      if (fine.matches && !stop) stop = startCursor(el, mapEl);
+      else if (!fine.matches && stop) {
+        stop();
+        stop = null;
       }
     };
-
-    const write = () => {
-      raf = 0;
-      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-    };
-    const show = (visible: boolean) => {
-      if (visible === on) return;
-      on = visible;
-      el.dataset.visible = visible ? "true" : "false";
-      html.classList.toggle("zorx-cursor-on", visible);
-      if (!visible) setZone(null);
-    };
-
-    const onMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse") return show(false); // touch / pen: native behaviour
-      x = e.clientX;
-      y = e.clientY;
-      flight.move(x, y);
-      const appearing = !on;
-      if (appearing) write(); // first appearance: place before showing (no slide-in)
-      else if (!raf) raf = requestAnimationFrame(write);
-      show(true);
-      // Re-appearing (e.g. back from outside the window) already over the map:
-      // no new pointerover will come, so take up the map mode here.
-      if (appearing) setZone((e.target as Element | null)?.closest<HTMLElement>('[data-cursor-zone="map"]') ?? null);
-    };
-    const onOver = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse") return;
-      const t = e.target as Element | null;
-      el.dataset.state = t?.closest(CARD) ? "card" : t?.closest(BUTTON) ? "button" : t?.closest(LINK) ? "link" : "";
-      x = e.clientX;
-      y = e.clientY;
-      if (on) setZone(t?.closest<HTMLElement>('[data-cursor-zone="map"]') ?? null);
-    };
-    const onDown = (e: PointerEvent) => {
-      if (e.pointerType === "mouse") el.dataset.pressed = "";
-    };
-    const onUp = () => delete el.dataset.pressed;
-    const onLeaveWindow = (e: MouseEvent) => {
-      if (!e.relatedTarget) show(false);
-    };
-    const onBlur = () => show(false);
-
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerover", onOver, { passive: true });
-    window.addEventListener("pointerdown", onDown, { passive: true });
-    window.addEventListener("pointerup", onUp, { passive: true });
-    window.addEventListener("pointercancel", onUp, { passive: true });
-    document.addEventListener("mouseout", onLeaveWindow);
-    window.addEventListener("blur", onBlur);
-
+    sync();
+    fine.addEventListener("change", sync);
     return () => {
-      cancelAnimationFrame(raf);
-      flight.destroy();
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerover", onOver);
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-      document.removeEventListener("mouseout", onLeaveWindow);
-      window.removeEventListener("blur", onBlur);
-      html.classList.remove("zorx-cursor-on");
+      fine.removeEventListener("change", sync);
+      stop?.();
+      stop = null;
     };
   }, []);
 
@@ -156,4 +90,95 @@ export function BirdCursor() {
       </div>
     </>
   );
+}
+
+/**
+ * The cursor controller: pointer listeners, the per-frame position write and
+ * the map-flight handover. Returns its teardown (also run when a hybrid device
+ * loses its mouse).
+ */
+function startCursor(el: HTMLDivElement, mapEl: HTMLDivElement): () => void {
+  const html = document.documentElement;
+  let x = 0;
+  let y = 0;
+  let raf = 0;
+  let on = false;
+  let zone: HTMLElement | null = null;
+  const flight = createMapFlight(mapEl);
+
+  const setZone = (next: HTMLElement | null) => {
+    if (next === zone) return;
+    zone = next;
+    if (zone) {
+      el.dataset.mode = "map";
+      flight.enter(zone, x, y);
+    } else {
+      delete el.dataset.mode;
+      flight.leave();
+    }
+  };
+
+  const write = () => {
+    raf = 0;
+    el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  };
+  const show = (visible: boolean) => {
+    if (visible === on) return;
+    on = visible;
+    el.dataset.visible = visible ? "true" : "false";
+    html.classList.toggle("zorx-cursor-on", visible);
+    if (!visible) setZone(null);
+  };
+
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse") return show(false); // touch / pen: native behaviour
+    x = e.clientX;
+    y = e.clientY;
+    flight.move(x, y);
+    const appearing = !on;
+    if (appearing) write(); // first appearance: place before showing (no slide-in)
+    else if (!raf) raf = requestAnimationFrame(write);
+    show(true);
+    // Re-appearing (e.g. back from outside the window) already over the map:
+    // no new pointerover will come, so take up the map mode here.
+    if (appearing) setZone((e.target as Element | null)?.closest<HTMLElement>('[data-cursor-zone="map"]') ?? null);
+  };
+  const onOver = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse") return;
+    const t = e.target as Element | null;
+    el.dataset.state = t?.closest(CARD) ? "card" : t?.closest(BUTTON) ? "button" : t?.closest(LINK) ? "link" : "";
+    x = e.clientX;
+    y = e.clientY;
+    if (on) setZone(t?.closest<HTMLElement>('[data-cursor-zone="map"]') ?? null);
+  };
+  const onDown = (e: PointerEvent) => {
+    if (e.pointerType === "mouse") el.dataset.pressed = "";
+  };
+  const onUp = () => delete el.dataset.pressed;
+  const onLeaveWindow = (e: MouseEvent) => {
+    if (!e.relatedTarget) show(false);
+  };
+  const onBlur = () => show(false);
+
+  window.addEventListener("pointermove", onMove, { passive: true });
+  window.addEventListener("pointerover", onOver, { passive: true });
+  window.addEventListener("pointerdown", onDown, { passive: true });
+  window.addEventListener("pointerup", onUp, { passive: true });
+  window.addEventListener("pointercancel", onUp, { passive: true });
+  document.addEventListener("mouseout", onLeaveWindow);
+  window.addEventListener("blur", onBlur);
+
+  return () => {
+    cancelAnimationFrame(raf);
+    show(false); // hides the bird and gives the native cursor back
+    flight.destroy();
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerover", onOver);
+    window.removeEventListener("pointerdown", onDown);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+    document.removeEventListener("mouseout", onLeaveWindow);
+    window.removeEventListener("blur", onBlur);
+    html.classList.remove("zorx-cursor-on");
+  };
 }

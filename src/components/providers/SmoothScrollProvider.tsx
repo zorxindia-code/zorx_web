@@ -16,7 +16,10 @@ gsap.registerPlugin(ScrollTrigger);
  * the pinned intro and every ScrollTrigger keep working as they are.
  *
  *  - one clock: Lenis is stepped by GSAP's ticker (autoRaf off, no extra rAF
- *    loop) and tells ScrollTrigger about each step
+ *    loop) and tells ScrollTrigger about each step — only while it has work:
+ *    the step joins the ticker on wheel / trackpad input ('virtual-scroll') and
+ *    leaves once the glide has settled. Idle, it costs no frames (touch keeps
+ *    native scrolling and never needs it).
  *  - the intro owns the scroll lock: while <html> has `zorx-locked` (the
  *    preloader), Lenis is stopped — wheel input is discarded, not queued — and
  *    it starts again, from where the page is, the moment the intro unlocks
@@ -34,8 +37,31 @@ export function SmoothScrollProvider() {
     }
 
     lenis.on("scroll", ScrollTrigger.update);
-    const step = (time: number) => lenis.raf(time * 1000);
-    gsap.ticker.add(step);
+    let stepping = false;
+    let idleFrames = 0;
+    const step = (time: number) => {
+      lenis.raf(time * 1000);
+      if (lenis.isScrolling) idleFrames = 0;
+      // Settled for two frames: off the ticker until the next input. (Not after
+      // one: a sleeping GSAP ticker runs a newly added listener at once — inside
+      // the wheel handler, before Lenis has started the glide it is about to.)
+      else if (++idleFrames >= 2) {
+        gsap.ticker.remove(step);
+        stepping = false;
+      }
+    };
+    const wake = () => {
+      if (stepping) return;
+      stepping = true;
+      // Lenis measures each frame from its previous one: after an idle pause that
+      // would be one huge step (the glide finishing in a single frame). Restart
+      // its clock so the first frame after waking is a normal one.
+      lenis.time = 0;
+      idleFrames = 0;
+      gsap.ticker.add(step);
+    };
+    const offInput = lenis.on("virtual-scroll", wake);
+    wake();
     gsap.ticker.lagSmoothing(0); // the scroll must never skip ahead after a slow frame
 
     // Follow the intro's scroll lock (ZorxExperience adds / removes html.zorx-locked).
@@ -54,6 +80,7 @@ export function SmoothScrollProvider() {
 
     return () => {
       lock.disconnect();
+      offInput();
       gsap.ticker.remove(step);
       gsap.ticker.lagSmoothing(500, 33); // GSAP's default
       lenis.destroy();

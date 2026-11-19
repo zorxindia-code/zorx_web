@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { servicesFont } from "@/components/services/font";
-import "./errors.css";
 
 // Next marks not-found responses noindex itself.
 export const metadata: Metadata = { title: "Page not found" };

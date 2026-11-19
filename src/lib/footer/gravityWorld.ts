@@ -163,6 +163,7 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
       M.Composite.add(world, [probe, c]);
     }
     guideT = 0;
+    wake();
   }
 
   /** Soft landing guide: springs ease in, angles turn toward the design, then all is let go. */
@@ -280,11 +281,21 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
 
   // ---------------------------------------------------------------- loop
   let raf = 0, last = 0, acc = 0, running = false;
+  /**
+   * Everything at rest: every body asleep (Matter's sleeping), nothing held, no
+   * landing guide, no recovery under way. Nothing can move until an input wakes
+   * a body, so the loop stops (no idle frames, no battery) — wake() restarts it.
+   */
+  const resting = () =>
+    !guides.length && dragging.size === 0 && items.every((it) => !it.body || (it.body.isSleeping && !it.rescue));
   const tick = (now: number) => {
-    raf = requestAnimationFrame(tick);
+    raf = 0;
     const dt = Math.min(100, now - (last || now));
     last = now;
-    if (!released) return;
+    if (!released) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
     acc += dt;
     let n = 0;
     while (acc >= STEP && n < MAX_STEPS) {
@@ -297,6 +308,18 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
     }
     if (n === MAX_STEPS) acc = 0; // never spiral after a long frame
     render();
+    if (resting()) {
+      last = 0; // the next frame after a wake starts fresh (no catch-up)
+      acc = 0;
+      return;
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  /** Restart a resting loop (an input, a resize, the release). */
+  const wake = () => {
+    if (!running || raf) return;
+    last = 0;
+    raf = requestAnimationFrame(tick);
   };
 
   // ---------------------------------------------------------------- pointer
@@ -350,6 +373,7 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
         Object.assign(it, z);
       }
       render(true);
+      wake();
     },
     start() {
       if (running) return;
@@ -360,6 +384,7 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
     stop() {
       running = false;
       cancelAnimationFrame(raf);
+      raf = 0;
     },
     render,
     /** The ceiling, in scene units (negative = above the stage: the black space over the footer). */
@@ -391,6 +416,7 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
       c.pointA = reachable(it, b, c, p);
       M.Composite.add(world, c);
       dragging.set(pointerId, { body: b, c, samples: [{ ...p, t }] });
+      wake();
       return true;
     },
     drag(pointerId: number, p: { x: number; y: number }, t: number) {
@@ -398,6 +424,7 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
       if (!d) return;
       const it = items.find((i) => i.body === d.body);
       d.c.pointA = it ? reachable(it, d.body, d.c, p) : { ...p };
+      wake();
       d.samples.push({ ...p, t });
       if (d.samples.length > 6) d.samples.shift();
       M.Sleeping.set(d.body, false);
@@ -415,6 +442,7 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
         const m = Math.hypot(v.x, v.y), cap = T.maxImpact * 1.6;
         M.Body.setVelocity(d.body, m > cap ? { x: (v.x / m) * cap, y: (v.y / m) * cap } : v);
       }
+      wake();
     },
     /** Pointer sweeping across the scene (not dragging): knock what it hits. */
     sweep(from: { x: number; y: number }, to: { x: number; y: number }, dtMs: number, now: number) {
@@ -445,6 +473,7 @@ export function createGravityWorld(M: Matter, objects: GravityObject[], onFrame?
         const R = it.kind === "disc" ? it.r! : it.w! / 2;
         const spin = Math.max(-0.25, Math.min(0.25, ((r.x * dv.y - r.y * dv.x) / (R * R)) * 0.5));
         M.Body.setAngularVelocity(b, b.angularVelocity + spin);
+        wake();
       }
     },
     destroy() {

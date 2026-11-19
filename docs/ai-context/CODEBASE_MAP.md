@@ -23,7 +23,7 @@ zorx_web/
 │  ├─ icons/                 loading_sun.png (loader ring), zorx-clients.png (logo sheet, source only)
 │  ├─ clients/*.webp         14 client logos, white on transparent: 12 cut from the sheet, 2 converted from supplied files (scripts/make-client-logo.mjs)
 │  ├─ fonts/Outfit/          variable TTF (used) + static/ TTFs (unused) + licence
-│  ├─ images/                contact-map.svg (traced), female-bird.png (original, 986 KB)
+│  ├─ images/                contact-map.svg (traced); the female manakin is now a clip in videos/contact/ (her old still is in assets-src/images/)
 │  ├─ screens/               design reference screenshots (landing_showreel.jpeg referenced in comments only)
 │  └─ videos/
 │     ├─ optimized/          loading-bird-ice.mp4, showreel-1080/720.mp4, showreel-poster.jpg  ← served

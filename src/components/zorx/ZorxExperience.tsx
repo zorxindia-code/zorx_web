@@ -87,6 +87,17 @@ export default function ZorxExperience() {
         base: () => base,
         // Lazy: the showreel gets its poster and permission to buffer only now.
         onReelApproach: () => {
+          // Data saving (the user's Save-Data setting, or a 2G/3G connection): the
+          // 720p reel on every screen — half the bytes of the 1080p one. The hints
+          // are optional (Chromium only); without them nothing changes.
+          const net = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+          if (net && (net.saveData || /(^|-)(2g|3g)$/.test(net.effectiveType ?? ""))) {
+            const large = reelVid.querySelector<HTMLSourceElement>(`source[src="${ASSETS.showreel.large}"]`);
+            if (large) {
+              large.remove();
+              reelVid.load(); // re-select: the small source now matches everywhere
+            }
+          }
           if (reelVid.dataset.poster) reelVid.poster = reelVid.dataset.poster;
           reelVid.preload = "auto";
           reelEl.dataset.active = "";
@@ -118,6 +129,7 @@ export default function ZorxExperience() {
       // ------------------------------------------------ 01 · loading (~2 s)
       let alive = true;
       let scrollTl: gsap.core.Timeline | null = null;
+      let disposeScroll: (() => void) | null = null;
       const essentials = waitForEssentials(
         loaderEl,
         Array.from(stageEl.querySelectorAll<HTMLImageElement>(".zorx-art img, .zorx-square img")),
@@ -132,7 +144,9 @@ export default function ZorxExperience() {
           contextSafe!(() => {
             if (!alive) return;
             html.classList.remove("zorx-locked");
-            scrollTl = buildScrollExperience(rig);
+            const built = buildScrollExperience(rig);
+            scrollTl = built.tl;
+            disposeScroll = built.dispose;
             stageEl.dataset.ready = ""; // fades the scroll indicator in (CSS)
           }),
         )
@@ -150,8 +164,13 @@ export default function ZorxExperience() {
           lastW = w;
           L = measure();
           applyLayout();
+          // Re-place every element for the new layout first: the O's resting spot
+          // (between the handoff and the showreel) is a set, not a tween, so a
+          // refresh alone would leave it where the old layout had it (found on a
+          // portrait → landscape rotation). The refresh then re-renders every tween
+          // at the current scroll position over it — same task, no paint between.
+          setInitialState(rig);
           if (scrollTl) ScrollTrigger.refresh();
-          else setInitialState(rig);
         }, 120);
       });
       window.addEventListener("resize", onResize);
@@ -159,6 +178,7 @@ export default function ZorxExperience() {
       return () => {
         alive = false;
         essentials.cancel();
+        disposeScroll?.();
         window.clearTimeout(timer);
         window.removeEventListener("resize", onResize);
         reelVid.removeEventListener("playing", onReelPlaying);

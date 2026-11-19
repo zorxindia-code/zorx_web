@@ -88,13 +88,25 @@ export interface PerchedImage {
   perchY: number;
   crownY: number;
   feetX: number;
-  /**
-   * Optional looping transparent clip of the same bird (e.g. head turns),
-   * framed exactly like `src` (same canvas aspect, body and feet on the same
-   * pixels; first frame = the still). Played over the still when set; the still
-   * stays the fallback (before load, reduced motion). null = still only.
-   */
-  motion: { webm: string; hevc: string } | null;
+  /** Optional transparent clip of the same bird on the same canvas (see FemaleClip). */
+  motion: FemaleClip | null;
+}
+
+/**
+ * The female's clip: one transparent video on exactly the poster's canvas
+ * (first frame = the poster = her resting pose), played in ranges (seconds):
+ *   watch  — rest → a blink and a look around (front, right, back to the
+ *            males), ending near the rest pose
+ *   react  — continues from `watch`'s end: a crouch and a wing flap, landing
+ *            and settling; its last 12 frames dissolve into the rest pose, so
+ *            the return is seamless (process-bird-video --loop-xfade 12)
+ */
+export interface FemaleClip {
+  webm: string;
+  hevc: string;
+  rest: number;
+  watch: readonly [number, number];
+  react: readonly [number, number];
 }
 
 export interface ContactBirds {
@@ -115,15 +127,43 @@ export const CONTACT_BIRDS: ContactBirds = {
     x1: 716.1,
   },
   female: {
-    src: "/images/female-bird.png",
-    width: 1000,
-    height: 1378,
-    perchY: 1000, // the curl of her toes
-    crownY: 79,
-    feetX: 465,
-    // Head-turn clip not supplied yet — the still image cannot be turned
-    // convincingly (3/4 view, left side of the face only). Asset spec:
-    // docs/ai-context/CHATGPT_HANDOVER.md → "Female Manakin head-turn clip".
-    motion: null,
+    // From assets-src/videos/bird-videos/femalebird.mp4 (green screen, untouched)
+    // via scripts/process-bird-video.mjs → public/videos/contact/ (VP9-alpha WebM +
+    // HEVC-alpha MP4 + poster; placement from female-bird.json):
+    //   --name female-bird --out public/videos/contact --start 0 --end 7.625
+    //   --crop 940:1030:60:470 --width 480 --key protect --protect-still
+    //   --line-green --line-neutral --line-pad 22 --temporal --stabilize
+    //   --loop-xfade 12 --rest first --poster
+    // (the earlier still, female-bird.png, is kept in assets-src/images/)
+    src: "/videos/contact/female-bird-poster.webp",
+    width: 480,
+    height: 526,
+    perchY: 401.6, // the wire her feet grip
+    crownY: 81.7,
+    feetX: 235.1,
+    motion: {
+      webm: "/videos/contact/female-bird.webm",
+      hevc: "/videos/contact/female-bird-hevc.mp4",
+      rest: 0,
+      watch: [0, 4.0],
+      react: [4.0, 7.125],
+    },
   },
 };
+
+/**
+ * The female's behaviour (ContactSection → FemaleBird).
+ *  - maleCues: courtship bursts in the males' 6.42 s loop (manakins.webm), measured
+ *    as frame-to-frame motion peaks at 1.08 / 2.50 / 4.17 s; she reacts as one
+ *    begins — when she has rested at least `restMs` (a random value in the range)
+ *  - ctaCooldownMs: after a LET'S TALK reaction starts, hover / tap / focus again
+ *    within this time does nothing (no restarts, no overlap)
+ *  - ctaJoinS: a look-around this close to its end runs straight on into the
+ *    flap (seamless — the two ranges are continuous footage) instead of jumping
+ */
+export const FEMALE_TUNING = {
+  maleCues: [0.7, 2.2, 3.7],
+  restMs: [2500, 4000],
+  ctaCooldownMs: 1500,
+  ctaJoinS: 0.6,
+} as const;

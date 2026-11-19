@@ -16,6 +16,8 @@ import "./ClientsSection.css";
  * - when the pointer (or a finger) is on a logo, glides the animation to a stop
  *   and marks that one logo for the focus scale-up; leaving glides it back to
  *   speed from exactly where it stopped. These are short ramps, not a running loop.
+ * Off screen the loop is paused (animation-play-state — it resumes from the
+ * very same position, no jump), so nothing is composited for an unseen row.
  * Reduced motion: nothing moves by itself; the single row can be swiped instead.
  */
 export default function ClientsSection() {
@@ -33,6 +35,13 @@ export default function ClientsSection() {
     setDuration();
     const ro = new ResizeObserver(setDuration);
     ro.observe(el);
+
+    // Off screen: paused where it is (resumes from the same frame).
+    const io = new IntersectionObserver((es) => {
+      if (es[es.length - 1].isIntersecting) delete el.dataset.offscreen;
+      else el.dataset.offscreen = "";
+    });
+    io.observe(el.parentElement ?? el);
 
     // Playback rate eased 1 ↔ 0 — never an abrupt stop or start. Changing the
     // rate keeps the current position, so it resumes exactly where it paused.
@@ -83,6 +92,8 @@ export default function ClientsSection() {
 
     return () => {
       ro.disconnect();
+      io.disconnect();
+      delete el.dataset.offscreen;
       cancelAnimationFrame(raf);
       el.removeEventListener("pointerover", onOver);
       el.removeEventListener("pointerleave", onLeave);

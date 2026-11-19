@@ -8,7 +8,7 @@
   background: #000;
   color: #fff;
   font-family: var(--font-services), ui-sans-serif, system-ui, sans-serif;
-  padding: 0 max(1.25rem, 8.2vw) clamp(3.5rem, 7vw, 7rem);
+  padding: 0 var(--zorx-gutter) clamp(3.5rem, 7vw, 7rem);
 }
 
 .zorx-offices-grid {
@@ -83,7 +83,12 @@
   background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
   transition: background-size 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.zorx-office-link:hover,
+/* hover only where there is a hovering pointer — after a tap it would stick */
+@media (hover: hover) {
+  .zorx-office-link:hover {
+    background-size: 100% 1px;
+  }
+}
 .zorx-office-link:focus-visible {
   background-size: 100% 1px;
 }

@@ -456,9 +456,38 @@ export default function ServicesSection() {
       r.addEventListener("click", onClick);
     });
 
+    // ---------------------------------------------------------- media lifecycle
+    // Once used, the eight alpha clips stay decoded and buffered (≈ 27 MB of
+    // renderer memory, measured in Chrome). Far from the section (1.5 screens
+    // away) for 10 s with no bird out, they are given back: sources dropped, the
+    // loaded flags cleared, so the next use loads them again exactly as the first
+    // time did (normally from the HTTP cache). Hysteresis: nothing is released
+    // during ordinary scrolling past, and never a clip that is still loading.
+    let releaseTimer = 0;
+    const release = () => {
+      if (phase !== "idle" || want || current) return;
+      for (const v of allVideos) {
+        if (!v.dataset.loaded || !isFull(v)) continue;
+        v.pause();
+        v.removeAttribute("src");
+        v.load(); // drops the decoder and the buffered data
+        delete v.dataset.loaded;
+      }
+    };
+    const far = new IntersectionObserver(
+      (es) => {
+        window.clearTimeout(releaseTimer);
+        if (!es[es.length - 1].isIntersecting) releaseTimer = window.setTimeout(release, 10_000);
+      },
+      { rootMargin: "150% 0px" },
+    );
+    far.observe(root);
+
     return () => {
       seq++;
       window.clearTimeout(timer);
+      window.clearTimeout(releaseTimer);
+      far.disconnect();
       gsap.killTweensOf([...allVideos, ...[...grips.values()].map((g) => g.el)]);
       grips.forEach((g) => g.ctl.hide());
       allVideos.forEach((v) => {

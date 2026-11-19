@@ -10,7 +10,7 @@
   color: #fff;
   font-family: var(--font-services), ui-sans-serif, system-ui, sans-serif;
   /* room above the frame for the birds standing on its top border */
-  padding: clamp(5rem, 13vw, 13rem) max(1.25rem, 8.2vw) clamp(4rem, 9vw, 8rem);
+  padding: clamp(5rem, 13vw, 13rem) var(--zorx-gutter) clamp(4rem, 9vw, 8rem);
   /* never a horizontal scroll; a high courtship leap may rise past the top */
   overflow-x: clip;
 }
@@ -102,6 +102,11 @@
 }
 .zorx-contact-female-video[data-playing] {
   opacity: 1;
+}
+/* the clip shows its own first frame: the poster underneath hides, or a moving
+   bird (wing flap, head turn) would show the resting one through it */
+.zorx-contact-female[data-video] img {
+  visibility: hidden;
 }
 @media (max-width: 640px) {
   .zorx-contact-birds {

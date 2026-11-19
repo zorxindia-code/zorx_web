@@ -11,6 +11,9 @@ const tagline = Jost({
   weight: "500",
   subsets: ["latin"],
   display: "swap",
+  // Not preloaded: the tagline only appears once the logo has formed (scrolled);
+  // fetched at first layout instead, well before it is shown.
+  preload: false,
 });
 
 /**

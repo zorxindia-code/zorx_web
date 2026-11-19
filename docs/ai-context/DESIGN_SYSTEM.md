@@ -37,7 +37,7 @@ No dark/light mode switch exists. The site is dark by design (`colorScheme: "dar
 
 | Family | Source | Variable | Use |
 | --- | --- | --- | --- |
-| **Outfit** (variable 100–900) | `public/fonts/Outfit/Outfit-VariableFont_wght.ttf` via `next/font/local` (`components/services/font.ts`) | `--font-services` | Vision, Services, Clients, Work, Contact, Offices |
+| **Outfit** (variable 100–900) | `assets-src/fonts/Outfit/Outfit-VariableFont_wght.woff2` (lossless WOFF2 of the supplied TTF, kept beside it) via `next/font/local`, not preloaded (`components/services/font.ts`) | `--font-services` | Vision, Services, Clients, Work, Contact, Offices |
 | **Jost 500** | `next/font/google` (`app/layout.tsx`) | `--font-tagline` | "INTERACTIVE AGENCY" tagline (SVG text) |
 | system-ui | — | — | `body` fallback |
 

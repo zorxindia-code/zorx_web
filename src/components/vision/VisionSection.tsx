@@ -5,6 +5,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
 import { servicesFont } from "@/components/services/font";
+import { birdRoute } from "@/lib/vision/birdRoute";
 import { BIRD_PATH, BIRD_VIEWBOX } from "./birdPath";
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
@@ -56,32 +57,24 @@ export default function VisionSection() {
     const copy = root.querySelector<HTMLElement>(".zorx-vision-copy")!;
 
     // ---------------------------------------------------------- outline geometry
-    const L = shape.getTotalLength();
     // The path starts at the V notch. Going forward it runs along one wing's upper
-    // edge to that wing's tip; the other wing's upper edge ends the loop. Find both
-    // tips (min / max x) and the route left tip → notch → right tip along them.
-    const N = 480;
-    let sLeft = 0, sRight = 0, minX = Infinity, maxX = -Infinity;
-    for (let i = 0; i < N; i++) {
-      const s = (i / N) * L;
-      const { x } = shape.getPointAtLength(s);
-      if (x < minX) { minX = x; sLeft = s; }
-      if (x > maxX) { maxX = x; sRight = s; }
-    }
+    // edge to that wing's tip; the other wing's upper edge ends the loop. Both tips
+    // (min / max x), the direction of the route left tip → notch → right tip, and
+    // the head's x along it come from the path data in plain JS (lib/vision/birdRoute:
+    // flattened once, memoised — no getPointAtLength loop at mount), as fractions
+    // scaled by the browser's own length so dash lengths stay in its units.
+    const L = shape.getTotalLength();
+    const route = birdRoute(BIRD_PATH);
+    const forward = route.forward;
     // Head position along the path (unwrapped): increasing if the right wing comes
     // first after the notch, decreasing otherwise.
-    const forward = sRight < sLeft;
-    const p0 = sLeft;
-    const p1 = forward ? L + sRight : sRight - L;
+    const p0 = route.left * L;
+    const p1 = forward ? L + route.right * L : route.right * L - L;
     const mod = (v: number) => ((v % L) + L) % L;
     // Screen-independent sweep source: the head's x along the route, made
     // monotonic (the rounded wingtip curls back a little), as a lookup table.
-    const M = 240;
-    const routeX = new Float32Array(M + 1);
-    for (let i = 0, run = -Infinity; i <= M; i++) {
-      run = Math.max(run, shape.getPointAtLength(mod(p0 + (p1 - p0) * (i / M))).x);
-      routeX[i] = run;
-    }
+    const routeX = route.routeX;
+    const M = routeX.length - 1;
     const xAt = (t: number) => {
       const f = Math.max(0, Math.min(1, t)) * M, i = Math.floor(f);
       return i >= M ? routeX[M] : routeX[i] + (routeX[i + 1] - routeX[i]) * (f - i);

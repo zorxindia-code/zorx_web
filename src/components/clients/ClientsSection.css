@@ -35,6 +35,10 @@
   animation: zorx-clients-loop var(--clients-dur, 50s) linear infinite;
   will-change: transform;
 }
+/* off screen (ClientsSection): held exactly where it is — resumes without a jump */
+.zorx-clients-track[data-offscreen] {
+  animation-play-state: paused;
+}
 
 /* Spacing lives on each item (not `gap`), so one set is exactly half the track. */
 .zorx-clients-item {

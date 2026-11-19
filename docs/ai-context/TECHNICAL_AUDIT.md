@@ -31,7 +31,7 @@ Nothing was modified during this audit.
 | --- | --- |
 | LCP / interactivity | The intro's 2 s minimum lock and full-screen pinned stage delay first interaction; LCP is likely the intro video/poster. Not measured with Lighthouse. |
 | Page weight | `public/` is **148 MB on disk**. Runtime-served media is much smaller (showreel 9.4 / 19 MB by screen size, bird clips 0.3–3.2 MB each, manakins ~2 MB). Originals in `assets-src/videos/bird-videos/` (~18.5 MB incl. 5.5 MB manakin source) and `assets-src/videos/Loading.mp4` are **deployed publicly but unused**. |
-| Female bird image | `public/images/female-bird.png` is 986 KB, but served through `next/image` optimisation (WebP, `sizes`), so the transferred size is small. Fine. |
+| Female bird | Now a transparent clip (`public/videos/contact/female-bird*`, 0.75 MB WebM / 0.97 MB HEVC, lazy) over its 29 KB poster; the old 986 KB PNG moved to `assets-src/images/`. |
 | GSAP bundle | gsap + ScrollTrigger + SplitText in the client bundle (one-time cost, reasonable for this site). |
 | Fonts | Outfit variable TTF (110 KB) via `next/font/local` with `display: swap`. Static Outfit TTFs in `assets-src/fonts/Outfit/static/` are unused but deployed. |
 | Re-renders | Very low: animation state lives in refs and data attributes, not React state. |

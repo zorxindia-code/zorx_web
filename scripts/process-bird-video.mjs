@@ -98,6 +98,12 @@ const TAIL_FEATHER = Number(args["tail-feather"] ?? 40);
 //                  dark green, which the protect key would keep as plumage), saturated
 //                  pixels are bird crossing it; fill is premultiplied
 const LINE_GREEN = "line-green" in args;
+// --line-neutral   with --line-green: a metal wire with a bright highlight (white →
+//                  grey → black across its rows, e.g. the female Manakin's) — any
+//                  low-chroma pixel in the band is wire too, not only near-black ones;
+//                  saturated pixels (pink feet) stay bird, and bird on both sides
+//                  (toes, tail) is rebuilt across as usual
+const LINE_NEUTRAL = "line-neutral" in args;
 // --line-band Y0:Y1  a light (pale) perch wire at known rows, in source px — the
 //                    dark-line detector can't see it. In the band, green-tinted
 //                    pixels are wire or backdrop (removed; rebuilt across, premultiplied,
@@ -391,7 +397,7 @@ frames.forEach((rgb, f) => {
           const sat = Math.max(r, g, b) - Math.min(r, g, b);
           // Line = near-black and neutral (max < 85, chroma < 28) or dark green; the
           // macaw's dark brown / blue tail is just warmer or more saturated than that.
-          const lineLike = greenish || (Math.max(r, g, b) < 85 && sat < 28);
+          const lineLike = greenish || (Math.max(r, g, b) < 85 && sat < 28) || (LINE_NEUTRAL && sat < 24);
           if (!lineLike && out[q + 3] >= 200) continue;
           // Line pixel. Bird on both sides (feet gripping it, a tail hanging through
           // it): rebuild across, premultiplied so edges don't turn grey. Otherwise it

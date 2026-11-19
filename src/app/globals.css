@@ -1,6 +1,16 @@
 @import "tailwindcss";
+/* Class detection: source media and scripts hold no class names — not scanned. */
+@source not "../../assets-src";
+@source not "../../scripts";
 
 :root {
+  /* Side gutter of the content sections (Featured Work, Contact, Offices): 8.2vw as
+     designed; past ~2150 px wide the content stops growing at --zorx-content-max and
+     is centred, so ultrawide screens keep the 1920 proportions (text sizes are
+     capped, the cards and the map would otherwise keep growing). The full-bleed
+     pieces — intro, services bands, client marquee, THANKS — stay full-bleed. */
+  --zorx-content-max: 1760px;
+  --zorx-gutter: max(1.25rem, 8.2vw, calc((100% - var(--zorx-content-max)) / 2));
   --zorx-black: #000000;
   --zorx-ice: #e8f5ff;
   /* Exact Ice Blue baked into z.png / o.png / x.png (233,245,255). Used wherever
@@ -617,4 +627,51 @@ button.zorx-cta {
   .zorx-cta::after {
     animation: none !important;
   }
+}
+
+/* ------------------------------------------------------------------ 404 / error pages */
+/* (kept here, not in their own stylesheet: as the root error boundary's CSS it would
+   otherwise be preloaded — unused — on every page) */
+.zorx-error {
+  min-height: 100svh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: clamp(1rem, 2.5vw, 1.75rem);
+  padding: 2rem max(1.25rem, 8.2vw);
+  background: var(--zorx-black);
+  color: var(--zorx-ice);
+  font-family: var(--font-services), ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+}
+.zorx-error-code {
+  margin: 0;
+  font-size: clamp(0.8rem, 1vw, 0.95rem);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.zorx-error-title {
+  margin: 0;
+  font-size: clamp(1.6rem, 3.4vw, 3rem);
+  font-weight: 500;
+  line-height: 1.12;
+}
+.zorx-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2.5rem;
+  justify-content: center;
+}
+.zorx-error-link {
+  --cta-line: calc(0.582em - 1.32px);
+  --cta-track: 0.08em;
+  padding: calc(0.55em + 1px) 0 calc(0.5em + 1px);
+  color: #fff;
+  font: inherit;
+  font-size: clamp(0.78rem, 1.15vw, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
 }

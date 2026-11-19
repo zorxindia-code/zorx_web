@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { servicesFont } from "@/components/services/font";
-import "./errors.css";
 
 /** Unexpected error in a route: the ZORX look, a retry and a way home. */
 export default function Error({ reset }: { error: Error & { digest?: string }; reset: () => void }) {

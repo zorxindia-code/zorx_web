@@ -113,6 +113,15 @@ export function buildScrollExperience(rig: Rig) {
 
   const v = rig.reelVideo;
   let reelRequested = false;
+  // The reel decodes only while its phase is reached AND the stage is on screen
+  // (and the tab visible): past the pin the playhead rests at the end, so
+  // "phase reached" alone would keep the 1080p loop running anywhere below.
+  let stageOnScreen = true;
+  const syncReel = () => {
+    if (tl.time() >= reelFadeAt && stageOnScreen && !document.hidden) {
+      if (v.paused) v.play().catch(() => {});
+    } else if (!v.paused) v.pause();
+  };
 
   const tl = gsap.timeline({
     defaults: { ease: "none" },
@@ -142,11 +151,19 @@ export function buildScrollExperience(rig: Rig) {
         reelRequested = true;
         rig.onReelApproach();
       }
-      if (t >= reelFadeAt) {
-        if (v.paused) v.play().catch(() => {});
-      } else if (!v.paused) v.pause();
+      syncReel();
     },
   });
+  const reelIo = new IntersectionObserver((es) => {
+    stageOnScreen = es[es.length - 1].isIntersecting;
+    syncReel();
+  });
+  reelIo.observe(rig.stage);
+  document.addEventListener("visibilitychange", syncReel);
+  const dispose = () => {
+    reelIo.disconnect();
+    document.removeEventListener("visibilitychange", syncReel);
+  };
 
   const sb = sqBase(rig);
   const ab = artBase(rig);
@@ -231,5 +248,5 @@ export function buildScrollExperience(rig: Rig) {
   tl.fromTo(rig.reel, { autoAlpha: 0 }, { autoAlpha: 1, duration: R * 0.4, ease: "power1.inOut", immediateRender: false }, reelFadeAt);
   tl.fromTo(v, { scale: 1.12 }, { scale: 1, duration: R * 0.6, ease: "power2.out", immediateRender: false }, reelStart + R * 0.3);
 
-  return tl;
+  return { tl, dispose };
 }
