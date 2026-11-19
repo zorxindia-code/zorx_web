@@ -15,8 +15,11 @@ import "./ContactSection.css";
  * frame's top border: the three dancing males to the left, the female to the
  * right, still, watching them.
  *
- * Entrance: headline, then CTA, rise softly into place once (IntersectionObserver
- * + CSS transitions). The bird clip loads only as the section approaches, plays
+ * Entrance (once, IntersectionObserver + CSS): the headline's words land one by
+ * one like birds coming down onto a perch — gliding in from the upper right,
+ * banking, touching down a little below the line and settling — and the "?"
+ * lands last and tilts its head, as the female does watching the males. Then
+ * the CTA rises in. The bird clip loads only as the section approaches, plays
  * only while it is on screen, and is a still poster with reduced motion.
  */
 export default function ContactSection() {
@@ -49,8 +52,8 @@ export default function ContactSection() {
     <section ref={section} className={`zorx-contact ${servicesFont.variable}`} aria-labelledby="zorx-contact-title">
       <div className="zorx-contact-frame">
         <PerchedBirds birds={CONTACT_BIRDS} />
-        <h2 id="zorx-contact-title" className="zorx-contact-title" data-reveal="">
-          Interested in working together?
+        <h2 id="zorx-contact-title" className="zorx-contact-title" data-reveal="words">
+          <PerchWords text="Interested in working together?" />
         </h2>
         <div className="zorx-contact-cta-wrap" data-reveal="">
           {CONTACT_HREF && /^https?:/.test(CONTACT_HREF) ? (
@@ -75,6 +78,37 @@ export default function ContactSection() {
       </div>
     </section>
   );
+}
+
+/**
+ * The headline as words that can land one by one (real text with real spaces —
+ * read and wrapped as usual). A trailing "?" is its own piece, kept on the line
+ * of the word before it.
+ */
+function PerchWords({ text }: { text: string }) {
+  const q = text.endsWith("?");
+  const words = (q ? text.slice(0, -1) : text).split(" ");
+  const last = words.length - 1;
+  const word = (w: string, i: number) => (
+    <span className="zorx-contact-word" style={{ "--i": i } as CSSProperties}>
+      {w}
+    </span>
+  );
+  return words.map((w, i) => (
+    <span key={i}>
+      {i === last && q ? (
+        <span className="zorx-contact-nowrap">
+          {word(w, i)}
+          <span className="zorx-contact-word zorx-contact-q" style={{ "--i": i + 1 } as CSSProperties}>
+            ?
+          </span>
+        </span>
+      ) : (
+        word(w, i)
+      )}
+      {i < last ? " " : null}
+    </span>
+  ));
 }
 
 /**
